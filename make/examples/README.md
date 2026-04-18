@@ -6,6 +6,7 @@ This directory contains practical examples for `make.exe` on Sprinter DSS.
 
 - `tools/mkstamp` - helper tool that creates/updates a file (used in recipes)
 - `tools/mkfail` - helper tool that exits with a non-zero code (used to test `-` prefix)
+- `tools/mkdel` - helper tool that deletes a file (used in clean recipes)
 - `01_basic/Makefile` - dependencies + variables + `.PHONY`
 - `02_prefixes/Makefile` - `@`, `-`, and `-n` dry-run behavior
 - `03_multifile/Makefile` - multi-file dependency tracking and selective rebuilds

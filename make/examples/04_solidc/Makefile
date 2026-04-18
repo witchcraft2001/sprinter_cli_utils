@@ -3,7 +3,8 @@ SRC = $(NAME).c
 TMC = $(NAME).tmc
 ASM = $(NAME).asm
 REL = $(NAME).rel
-OUT = $(NAME)
+OUT = $(NAME).EXE
+DELTOOL = MKDEL.EXE
 
 .PHONY: all
 .PHONY: clean
@@ -20,10 +21,10 @@ $(REL): $(ASM)
 	as $(ASM)
 
 $(OUT): $(REL)
-	ld $(OUT),clib/l/gXMAIN /x
+	ld $(REL),clib/l/gXMAIN /x
 
 clean:
-	del $(OUT)
-	del $(REL)
-	del $(ASM)
-	del $(TMC)
+	-$(DELTOOL) $(OUT)
+	-$(DELTOOL) $(REL)
+	-$(DELTOOL) $(ASM)
+	-$(DELTOOL) $(TMC)

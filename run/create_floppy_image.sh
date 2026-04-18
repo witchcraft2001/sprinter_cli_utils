@@ -41,6 +41,7 @@ build_utility() {
       fi
       make -C "$repo_root/make/examples/tools/mkstamp"
       make -C "$repo_root/make/examples/tools/mkfail"
+      make -C "$repo_root/make/examples/tools/mkdel"
       ;;
     *)
       echo "Error: unknown utility: $utility" >&2
@@ -76,12 +77,14 @@ copy_make_payload() {
 
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/TOOLS/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkfail/mkfail.exe" "$utility_root/TOOLS/MKFAIL.EXE"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkdel/mkdel.exe" "$utility_root/TOOLS/MKDEL.EXE"
 
   # Duplicate helper tools into each example directory so examples can run in place.
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/01_BASIC/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/02_PREFX/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/03_MULTI/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkfail/mkfail.exe" "$utility_root/EXAMPLES/02_PREFX/MKFAIL.EXE"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkdel/mkdel.exe" "$utility_root/EXAMPLES/04_SOLID/MKDEL.EXE"
 }
 
 copy_utility_payload() {
