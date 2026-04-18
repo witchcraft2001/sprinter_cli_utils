@@ -241,8 +241,11 @@ int parser_load_file(make_ctx_t *ctx, const char *path) {
 
     fp = fopen(path, "r");
     if (fp == (FILE *)0) {
+        MAKE_LOG("make: cannot open '%s'\n", path);
         return 0;
     }
+
+    MAKE_LOG("make: parsing '%s'\n", path);
 
     current_target = -1;
     while (fgets(line, sizeof(line), fp) != (char *)0) {
@@ -257,6 +260,7 @@ int parser_load_file(make_ctx_t *ctx, const char *path) {
         if (line[0] == ' ' || line[0] == '\t') {
             util_ltrim(line);
             if (!add_recipe_line(ctx, current_target, line)) {
+                MAKE_LOG("make: recipe parse error\n");
                 fclose(fp);
                 return 0;
             }
@@ -264,14 +268,17 @@ int parser_load_file(make_ctx_t *ctx, const char *path) {
         }
 
         if (parse_assignment_line(ctx, line)) {
+            MAKE_LOG("make: variable parsed\n");
             current_target = -1;
             continue;
         }
 
         if (!parse_rule_line(ctx, line, &current_target)) {
+            MAKE_LOG("make: rule parse error: %s\n", line);
             fclose(fp);
             return 0;
         }
+        MAKE_LOG("make: rule parsed\n");
     }
 
     fclose(fp);

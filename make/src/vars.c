@@ -14,8 +14,10 @@ static int var_name_ok(const char *s) {
 }
 
 void ctx_init(make_ctx_t *ctx) {
-    memset(ctx, 0, sizeof(*ctx));
+    ctx->target_count = 0;
     ctx->first_target_idx = 0xFF;
+    ctx->var_count = 0;
+    ctx->text_pool_pos = 0;
 }
 
 const char *ctx_strdup(make_ctx_t *ctx, const char *s) {

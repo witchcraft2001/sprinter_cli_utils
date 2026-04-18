@@ -19,6 +19,30 @@
 #define MAX_ARGV 16
 #define TEXT_POOL_SIZE 24576
 
+#ifndef MAKE_VERSION
+#define MAKE_VERSION "0.1.00000000"
+#endif
+
+#ifndef MAKE_LOG_ENABLE
+#define MAKE_LOG_ENABLE 0
+#endif
+
+#ifndef MAKE_STAGE_LOG_ENABLE
+#define MAKE_STAGE_LOG_ENABLE 1
+#endif
+
+#if MAKE_LOG_ENABLE
+#define MAKE_LOG(...) printf(__VA_ARGS__)
+#else
+#define MAKE_LOG(...) ((void)0)
+#endif
+
+#if MAKE_STAGE_LOG_ENABLE
+#define MAKE_STAGE(msg) printf("[make] %s\n", msg)
+#else
+#define MAKE_STAGE(msg) ((void)0)
+#endif
+
 typedef enum {
     VAR_RECURSIVE = 0,
     VAR_SIMPLE = 1

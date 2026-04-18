@@ -1,4 +1,4 @@
-STAMPER = mkstamp.exe
+STAMPER = MKSTAMP.EXE
 OUT := out.txt
 
 .PHONY: all clean

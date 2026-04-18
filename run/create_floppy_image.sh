@@ -25,13 +25,20 @@ utilities=(
   make
 )
 
+MAKE_BUILD_LOG="${MAKE_BUILD_LOG:-0}"
+MAKE_BUILD_VERSION="${MAKE_BUILD_VERSION:-}"
+
 build_utility() {
   local utility="$1"
 
   case "$utility" in
     make)
       make -C "$repo_root/make" clean
-      make -C "$repo_root/make"
+      if [ -n "$MAKE_BUILD_VERSION" ]; then
+        make -C "$repo_root/make" LOG="$MAKE_BUILD_LOG" VERSION="$MAKE_BUILD_VERSION"
+      else
+        make -C "$repo_root/make" LOG="$MAKE_BUILD_LOG"
+      fi
       make -C "$repo_root/make/examples/tools/mkstamp"
       make -C "$repo_root/make/examples/tools/mkfail"
       ;;
@@ -64,6 +71,11 @@ copy_make_payload() {
 
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/TOOLS/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkfail/mkfail.exe" "$utility_root/TOOLS/MKFAIL.EXE"
+
+  # Duplicate helper tools into each example directory so examples can run in place.
+  mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/01_BASIC/MKSTAMP.EXE"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/02_PREFX/MKSTAMP.EXE"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkfail/mkfail.exe" "$utility_root/EXAMPLES/02_PREFX/MKFAIL.EXE"
 }
 
 copy_utility_payload() {

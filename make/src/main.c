@@ -1,28 +1,91 @@
 #include "make.h"
 
 static void print_usage(void) {
-    printf("Sprinter make (MVP)\n");
+    printf("Sprinter make %s\n", MAKE_VERSION);
     printf("Usage: make [-n] [-f FILE] [target]\n");
+    printf("       make /?\n");
+    printf("Options:\n");
+    printf("  -f FILE   use specified makefile\n");
+    printf("  -n        dry-run (print commands only)\n");
+    printf("  -H,-h,/?  show this help\n");
 }
 
-static int parse_opts(make_opts_t *opts) {
+static int is_safe_arg_char(char c) {
+    if (isalnum((unsigned char)c)) {
+        return 1;
+    }
+    if (c == '.' || c == '_' || c == '-' || c == '/' || c == '\\' || c == ':' || c == '+') {
+        return 1;
+    }
+    return 0;
+}
+
+static void read_cmdline_safe(char *out, int out_sz) {
+    char *src;
+    int i;
+    int saw_bad;
+
+    src = dss_cmdline();
+    i = 0;
+    saw_bad = 0;
+
+    while (*src != '\0' && *src != '\r' && *src != '\n' && i < out_sz - 1) {
+        unsigned char ch;
+        ch = (unsigned char)*src;
+        if (ch >= 32 && ch <= 126) {
+            out[i++] = (char)ch;
+        } else {
+            saw_bad = 1;
+            break;
+        }
+        src++;
+    }
+    out[i] = '\0';
+
+    if (saw_bad) {
+        out[0] = '\0';
+    }
+}
+
+static int parse_opts(make_opts_t *opts, int *show_help) {
     char cmdline[MAX_CMDLINE];
     char *argv[MAX_ARGV];
-    char *src;
     int argc;
     int i;
 
     opts->makefile = "Makefile";
     opts->goal = (const char *)0;
     opts->dry_run = 0;
+    *show_help = 0;
 
-    src = dss_cmdline();
-    strncpy(cmdline, src, sizeof(cmdline) - 1);
-    cmdline[sizeof(cmdline) - 1] = '\0';
+    MAKE_STAGE("parse_opts: read cmdline");
+    read_cmdline_safe(cmdline, sizeof(cmdline));
 
+    MAKE_LOG("make: raw cmdline='%s'\n", cmdline);
+    MAKE_STAGE("parse_opts: tokenize cmdline");
     argc = util_parse_cmdline(cmdline, argv);
+    MAKE_LOG("make: argc=%d\n", argc);
     for (i = 0; i < argc; i++) {
-        if (util_streq(argv[i], "-n")) {
+        if (!util_streq(argv[i], "-n") && !util_streq(argv[i], "-f") && !util_streq(argv[i], "-H") && !util_streq(argv[i], "-h") && !util_streq(argv[i], "/?")) {
+            int j;
+            int bad;
+            bad = 0;
+            for (j = 0; argv[i][j] != '\0'; j++) {
+                if (!is_safe_arg_char(argv[i][j])) {
+                    bad = 1;
+                    break;
+                }
+            }
+            if (bad) {
+                MAKE_LOG("make: ignore suspicious arg '%s'\n", argv[i]);
+                continue;
+            }
+        }
+
+        if (util_streq(argv[i], "/?") || util_streq(argv[i], "-H") || util_streq(argv[i], "-h")) {
+            *show_help = 1;
+            return 1;
+        } else if (util_streq(argv[i], "-n")) {
             opts->dry_run = 1;
         } else if (util_streq(argv[i], "-f")) {
             if (i + 1 >= argc) {
@@ -45,17 +108,36 @@ static make_ctx_t g_ctx;
 
 void main(void) {
     make_opts_t opts;
+    int show_help;
     int goal;
     int rc;
 
-    ctx_init(&g_ctx);
+    printf("Sprinter make %s\n", MAKE_VERSION);
+    MAKE_STAGE("main: banner printed");
 
-    if (!parse_opts(&opts)) {
+    MAKE_STAGE("main: ctx_init start");
+    ctx_init(&g_ctx);
+    MAKE_STAGE("main: ctx_init done");
+
+    MAKE_STAGE("main: parse_opts start");
+    if (!parse_opts(&opts, &show_help)) {
+        MAKE_STAGE("main: parse_opts failed");
         print_usage();
         dss_exit(2);
         return;
     }
+    MAKE_STAGE("main: parse_opts done");
 
+    if (show_help) {
+        MAKE_STAGE("main: show help");
+        print_usage();
+        dss_exit(0);
+        return;
+    }
+
+    MAKE_LOG("make: loading file '%s'\n", opts.makefile);
+
+    MAKE_STAGE("main: load makefile");
     if (!parser_load_file(&g_ctx, opts.makefile)) {
         if (util_streq(opts.makefile, "Makefile")) {
             if (!parser_load_file(&g_ctx, "makefile")) {
@@ -69,6 +151,7 @@ void main(void) {
             return;
         }
     }
+    MAKE_STAGE("main: makefile loaded");
 
     if (g_ctx.target_count == 0 || g_ctx.first_target_idx == 0xFF) {
         printf("make: no targets\n");
@@ -77,6 +160,7 @@ void main(void) {
     }
 
     if (opts.goal != (const char *)0) {
+        MAKE_LOG("make: requested goal '%s'\n", opts.goal);
         goal = find_target(&g_ctx, opts.goal);
         if (goal < 0) {
             printf("make: target '%s' not found\n", opts.goal);
@@ -87,7 +171,9 @@ void main(void) {
         goal = (int)g_ctx.first_target_idx;
     }
 
+    MAKE_STAGE("main: build_goal start");
     rc = build_goal(&g_ctx, goal, &opts);
+    MAKE_STAGE("main: build_goal done");
     if (rc != 0) {
         dss_exit((unsigned char)1);
         return;

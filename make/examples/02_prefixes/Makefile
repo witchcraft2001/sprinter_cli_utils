@@ -1,5 +1,5 @@
-STAMPER = mkstamp.exe
-FAILER = mkfail.exe
+STAMPER = MKSTAMP.EXE
+FAILER = MKFAIL.EXE
 
 .PHONY: demo
 

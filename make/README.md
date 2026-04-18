@@ -30,6 +30,20 @@ make
 
 This produces `make.exe`.
 
+Default version format is `0.1.YYYYMMDD`.
+
+Build with explicit version:
+
+```bash
+make VERSION=0.1.20260418
+```
+
+Build with diagnostic logs enabled:
+
+```bash
+make LOG=1
+```
+
 If SDK is not at default relative path, pass:
 
 ```bash
@@ -40,6 +54,13 @@ make SDK_DIR=/absolute/path/to/sdcc-sprinter-sdk/
 
 ```text
 make [-n] [-f FILE] [target]
+```
+
+Help:
+
+```text
+make /?
+make -H
 ```
 
 Default makefile lookup: `Makefile`, then `makefile`.

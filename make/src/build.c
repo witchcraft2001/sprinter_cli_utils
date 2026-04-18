@@ -28,7 +28,9 @@ int build_goal(make_ctx_t *ctx, int idx, const make_opts_t *opts) {
     }
 
     t = &ctx->targets[idx];
+    MAKE_LOG("make: enter target '%s'\n", t->name);
     if (t->visited) {
+        MAKE_LOG("make: target already visited '%s'\n", t->name);
         return 0;
     }
     if (t->building) {
@@ -39,6 +41,7 @@ int build_goal(make_ctx_t *ctx, int idx, const make_opts_t *opts) {
     t->building = 1;
     t_exists = fs_get_mtime(t->name, &t_date, &t_time);
     need_run = (t->phony || !t_exists);
+    MAKE_LOG("make: target '%s' exists=%d phony=%d need=%d\n", t->name, t_exists, t->phony, need_run);
 
     for (i = 0; i < (int)t->dep_count; i++) {
         dep_idx = find_target(ctx, t->deps[i]);
@@ -50,6 +53,7 @@ int build_goal(make_ctx_t *ctx, int idx, const make_opts_t *opts) {
             }
             if (ctx->targets[dep_idx].phony) {
                 need_run = 1;
+                MAKE_LOG("make: dep '%s' is phony -> rebuild '%s'\n", t->deps[i], t->name);
             }
         }
 
@@ -62,10 +66,12 @@ int build_goal(make_ctx_t *ctx, int idx, const make_opts_t *opts) {
 
         if (d_exists && t_exists && newer(d_date, d_time, t_date, t_time)) {
             need_run = 1;
+            MAKE_LOG("make: dep '%s' newer than '%s'\n", t->deps[i], t->name);
         }
     }
 
     if (need_run) {
+        MAKE_LOG("make: run recipes for '%s'\n", t->name);
         if (t->cmd_count == 0) {
             if (!t->phony && !fs_get_mtime(t->name, &t_date, &t_time)) {
                 printf("make: no recipe to build target '%s'\n", t->name);
@@ -81,6 +87,8 @@ int build_goal(make_ctx_t *ctx, int idx, const make_opts_t *opts) {
             }
         }
     }
+
+    MAKE_LOG("make: done target '%s'\n", t->name);
 
     t->visited = 1;
     t->building = 0;

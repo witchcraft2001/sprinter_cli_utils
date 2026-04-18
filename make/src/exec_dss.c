@@ -42,11 +42,14 @@ int exec_recipe_line(make_ctx_t *ctx, const char *line, const make_opts_t *opts)
         printf("%s\n", p);
     }
 
+    MAKE_LOG("make: recipe exec='%s' silent=%d ignore=%d dry=%d\n", p, silent, ignore_err, opts->dry_run);
+
     if (opts->dry_run) {
         return 0;
     }
 
     rc = (int)dss_exec(p);
+    MAKE_LOG("make: recipe exit=%d\n", rc);
     if (rc < 0) {
         printf("make: cannot exec: %s\n", p);
         if (ignore_err) {
