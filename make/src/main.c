@@ -11,10 +11,13 @@ static void print_usage(void) {
 }
 
 static int is_safe_arg_char(char c) {
-    if (isalnum((unsigned char)c)) {
+    unsigned char uc;
+
+    uc = (unsigned char)c;
+    if ((uc >= 'A' && uc <= 'Z') || (uc >= 'a' && uc <= 'z') || (uc >= '0' && uc <= '9')) {
         return 1;
     }
-    if (c == '.' || c == '_' || c == '-' || c == '/' || c == '\\' || c == ':' || c == '+') {
+    if (uc == '.' || uc == '_' || uc == '-' || uc == '/' || uc == '\\' || uc == ':' || uc == '+') {
         return 1;
     }
     return 0;
@@ -53,8 +56,9 @@ static int parse_opts(make_opts_t *opts, int *show_help) {
     int argc;
     int i;
 
-    opts->makefile = "Makefile";
-    opts->goal = (const char *)0;
+    strcpy(opts->makefile, "Makefile");
+    opts->goal[0] = '\0';
+    opts->has_goal = 0;
     opts->dry_run = 0;
     *show_help = 0;
 
@@ -92,12 +96,19 @@ static int parse_opts(make_opts_t *opts, int *show_help) {
                 printf("make: option -f requires a file name\n");
                 return 0;
             }
-            opts->makefile = argv[++i];
+            strncpy(opts->makefile, argv[++i], sizeof(opts->makefile) - 1);
+            opts->makefile[sizeof(opts->makefile) - 1] = '\0';
         } else if (argv[i][0] == '-') {
             printf("make: unknown option '%s'\n", argv[i]);
             return 0;
         } else {
-            opts->goal = argv[i];
+            if (!opts->has_goal) {
+                strncpy(opts->goal, argv[i], sizeof(opts->goal) - 1);
+                opts->goal[sizeof(opts->goal) - 1] = '\0';
+                opts->has_goal = 1;
+            } else {
+                MAKE_LOG("make: ignore extra goal '%s'\n", argv[i]);
+            }
         }
     }
 
@@ -111,6 +122,9 @@ void main(void) {
     int show_help;
     int goal;
     int rc;
+    char cwd[MAX_TEXT];
+    int cwd_rc;
+    u8 disk;
 
     printf("Sprinter make %s\n", MAKE_VERSION);
     MAKE_STAGE("main: banner printed");
@@ -133,6 +147,15 @@ void main(void) {
         print_usage();
         dss_exit(0);
         return;
+    }
+
+    cwd[0] = '\0';
+    cwd_rc = (int)dss_curdir(cwd);
+    disk = dss_getdisk();
+    if (cwd_rc == 0) {
+        MAKE_LOG("make: cwd='%s' disk=%c:\n", cwd, (char)('A' + disk));
+    } else {
+        MAKE_LOG("make: cwd read failed rc=%d disk=%c:\n", cwd_rc, (char)('A' + disk));
     }
 
     MAKE_LOG("make: loading file '%s'\n", opts.makefile);
@@ -159,7 +182,7 @@ void main(void) {
         return;
     }
 
-    if (opts.goal != (const char *)0) {
+    if (opts.has_goal) {
         MAKE_LOG("make: requested goal '%s'\n", opts.goal);
         goal = find_target(&g_ctx, opts.goal);
         if (goal < 0) {

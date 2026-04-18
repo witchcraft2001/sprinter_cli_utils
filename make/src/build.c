@@ -13,6 +13,7 @@ static int newer(unsigned int d1, unsigned int t1, unsigned int d2, unsigned int
 int build_goal(make_ctx_t *ctx, int idx, const make_opts_t *opts) {
     target_t *t;
     int i;
+    int cmdn;
     int dep_idx;
     int rc;
     unsigned int t_date;
@@ -22,6 +23,7 @@ int build_goal(make_ctx_t *ctx, int idx, const make_opts_t *opts) {
     int t_exists;
     int d_exists;
     int need_run;
+    const char *cmds[MAX_CMDS];
 
     if (idx < 0 || idx >= (int)ctx->target_count) {
         return 1;
@@ -79,8 +81,17 @@ int build_goal(make_ctx_t *ctx, int idx, const make_opts_t *opts) {
                 return 1;
             }
         }
-        for (i = 0; i < (int)t->cmd_count; i++) {
-            rc = exec_recipe_line(ctx, t->cmds[i], opts);
+
+        cmdn = (int)t->cmd_count;
+        if (cmdn > MAX_CMDS) {
+            cmdn = MAX_CMDS;
+        }
+        for (i = 0; i < cmdn; i++) {
+            cmds[i] = t->cmds[i];
+        }
+
+        for (i = 0; i < cmdn; i++) {
+            rc = exec_recipe_line(ctx, cmds[i], opts);
             if (rc != 0) {
                 t->building = 0;
                 return rc;

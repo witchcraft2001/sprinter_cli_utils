@@ -7,17 +7,17 @@
 #include <dir.h>
 #include <sprinter/dss.h>
 
-#define MAX_TARGETS 64
-#define MAX_DEPS 24
-#define MAX_CMDS 24
-#define MAX_VARS 64
+#define MAX_TARGETS 24
+#define MAX_DEPS 12
+#define MAX_CMDS 12
+#define MAX_VARS 32
 #define MAX_VAR_NAME 32
 
 #define MAX_LINE 256
 #define MAX_TEXT 256
 #define MAX_CMDLINE 256
 #define MAX_ARGV 16
-#define TEXT_POOL_SIZE 24576
+#define TEXT_POOL_SIZE 8192
 
 #ifndef MAKE_VERSION
 #define MAKE_VERSION "0.1.00000000"
@@ -28,7 +28,11 @@
 #endif
 
 #ifndef MAKE_STAGE_LOG_ENABLE
-#define MAKE_STAGE_LOG_ENABLE 1
+#define MAKE_STAGE_LOG_ENABLE 0
+#endif
+
+#ifndef MAKE_DIAG_ENABLE
+#define MAKE_DIAG_ENABLE 0
 #endif
 
 #if MAKE_LOG_ENABLE
@@ -41,6 +45,12 @@
 #define MAKE_STAGE(msg) printf("[make] %s\n", msg)
 #else
 #define MAKE_STAGE(msg) ((void)0)
+#endif
+
+#if MAKE_DIAG_ENABLE
+#define MAKE_DIAG(...) printf(__VA_ARGS__)
+#else
+#define MAKE_DIAG(...) ((void)0)
 #endif
 
 typedef enum {
@@ -78,8 +88,9 @@ typedef struct {
 } make_ctx_t;
 
 typedef struct {
-    const char *makefile;
-    const char *goal;
+    char makefile[MAX_TEXT];
+    char goal[MAX_TEXT];
+    unsigned char has_goal;
     unsigned char dry_run;
 } make_opts_t;
 

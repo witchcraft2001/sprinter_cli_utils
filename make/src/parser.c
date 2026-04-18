@@ -213,6 +213,10 @@ static int parse_rule_line(make_ctx_t *ctx, char *line, int *current_target) {
 
 static int add_recipe_line(make_ctx_t *ctx, int current_target, char *line) {
     char expanded[MAX_LINE];
+    char cleaned[MAX_LINE];
+    int i;
+    int j;
+    unsigned char c;
     const char *saved;
 
     if (current_target < 0) {
@@ -225,7 +229,20 @@ static int add_recipe_line(make_ctx_t *ctx, int current_target, char *line) {
     if (!vars_expand(ctx, line, expanded, sizeof(expanded))) {
         return 0;
     }
-    saved = ctx_strdup(ctx, expanded);
+
+    i = 0;
+    j = 0;
+    while (expanded[i] != '\0' && j < (int)sizeof(cleaned) - 1) {
+        c = (unsigned char)expanded[i++];
+        if (c == '\t') {
+            cleaned[j++] = ' ';
+        } else if (c >= 32 && c <= 126) {
+            cleaned[j++] = (char)c;
+        }
+    }
+    cleaned[j] = '\0';
+
+    saved = ctx_strdup(ctx, cleaned);
     if (saved == (const char *)0) {
         return 0;
     }
