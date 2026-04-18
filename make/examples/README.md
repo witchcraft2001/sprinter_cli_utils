@@ -9,6 +9,7 @@ This directory contains practical examples for `make.exe` on Sprinter DSS.
 - `01_basic/Makefile` - dependencies + variables + `.PHONY`
 - `02_prefixes/Makefile` - `@`, `-`, and `-n` dry-run behavior
 - `03_multifile/Makefile` - multi-file dependency tracking and selective rebuilds
+- `04_solidc/Makefile` - SoliD-C toolchain build flow (`cc1` -> `cc2` -> `as` -> `ld`)
 
 ## Build helper tools
 
@@ -48,3 +49,16 @@ From `03_multifile` directory on DSS:
 4. Update another source and verify partial rebuild:
    - `make touch_b`
    - `make`
+
+## SoliD-C build example (04_solidc)
+
+The source file name is controlled by variable `NAME`:
+
+- `NAME = hello`
+- `SRC = $(NAME).c`
+
+To build:
+
+- `make`
+
+To build another source, change only `NAME` in `Makefile`.

@@ -62,6 +62,7 @@ copy_make_payload() {
   mkdir_img_dir "$utility_root/EXAMPLES/01_BASIC"
   mkdir_img_dir "$utility_root/EXAMPLES/02_PREFX"
   mkdir_img_dir "$utility_root/EXAMPLES/03_MULTI"
+  mkdir_img_dir "$utility_root/EXAMPLES/04_SOLID"
   mkdir_img_dir "$utility_root/TOOLS"
 
   mcopy -i "$image_path" -o "$repo_root/make/make.exe" "$utility_root/MAKE.EXE"
@@ -70,6 +71,8 @@ copy_make_payload() {
   mcopy -i "$image_path" -o "$repo_root/make/examples/01_basic/Makefile" "$utility_root/EXAMPLES/01_BASIC/MAKEFILE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/02_prefixes/Makefile" "$utility_root/EXAMPLES/02_PREFX/MAKEFILE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/03_multifile/Makefile" "$utility_root/EXAMPLES/03_MULTI/MAKEFILE"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/04_solidc/Makefile" "$utility_root/EXAMPLES/04_SOLID/MAKEFILE"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/04_solidc/hello.c" "$utility_root/EXAMPLES/04_SOLID/HELLO.C"
 
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/TOOLS/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkfail/mkfail.exe" "$utility_root/TOOLS/MKFAIL.EXE"
