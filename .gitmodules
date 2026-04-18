@@ -1,0 +1,6 @@
+[submodule "references/smallmake"]
+	path = references/smallmake
+	url = git@github.com:witchcraft2001/smallmake.git
+[submodule "references/bmake"]
+	path = references/bmake
+	url = git@github.com:arichardson/bmake.git
