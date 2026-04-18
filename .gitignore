@@ -1,2 +1,16 @@
 .DS_Store
 references/*
+
+# Build artifacts
+build/
+**/_build/
+
+# Sprinter/SDCC outputs
+*.exe
+*.ihx
+*.lk
+*.map
+*.mem
+*.noi
+*.sym
+make/specs.md
