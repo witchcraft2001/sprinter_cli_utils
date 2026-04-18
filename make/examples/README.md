@@ -8,6 +8,7 @@ This directory contains practical examples for `make.exe` on Sprinter DSS.
 - `tools/mkfail` - helper tool that exits with a non-zero code (used to test `-` prefix)
 - `01_basic/Makefile` - dependencies + variables + `.PHONY`
 - `02_prefixes/Makefile` - `@`, `-`, and `-n` dry-run behavior
+- `03_multifile/Makefile` - multi-file dependency tracking and selective rebuilds
 
 ## Build helper tools
 
@@ -32,3 +33,18 @@ From the example directory:
   - `make -f Makefile`
 - explicit goal:
   - `make clean`
+
+## Suggested checks for 03_multifile
+
+From `03_multifile` directory on DSS:
+
+1. First build:
+   - `make`
+2. No-op second build (everything up to date):
+   - `make`
+3. Update only one source and verify partial rebuild:
+   - `make touch_a`
+   - `make`
+4. Update another source and verify partial rebuild:
+   - `make touch_b`
+   - `make`

@@ -61,6 +61,7 @@ copy_make_payload() {
   mkdir_img_dir "$utility_root/EXAMPLES"
   mkdir_img_dir "$utility_root/EXAMPLES/01_BASIC"
   mkdir_img_dir "$utility_root/EXAMPLES/02_PREFX"
+  mkdir_img_dir "$utility_root/EXAMPLES/03_MULTI"
   mkdir_img_dir "$utility_root/TOOLS"
 
   mcopy -i "$image_path" -o "$repo_root/make/make.exe" "$utility_root/MAKE.EXE"
@@ -68,6 +69,7 @@ copy_make_payload() {
   mcopy -i "$image_path" -o "$repo_root/make/examples/README.md" "$utility_root/EXAMPLES/README.MD"
   mcopy -i "$image_path" -o "$repo_root/make/examples/01_basic/Makefile" "$utility_root/EXAMPLES/01_BASIC/MAKEFILE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/02_prefixes/Makefile" "$utility_root/EXAMPLES/02_PREFX/MAKEFILE"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/03_multifile/Makefile" "$utility_root/EXAMPLES/03_MULTI/MAKEFILE"
 
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/TOOLS/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkfail/mkfail.exe" "$utility_root/TOOLS/MKFAIL.EXE"
@@ -75,6 +77,7 @@ copy_make_payload() {
   # Duplicate helper tools into each example directory so examples can run in place.
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/01_BASIC/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/02_PREFX/MKSTAMP.EXE"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/03_MULTI/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkfail/mkfail.exe" "$utility_root/EXAMPLES/02_PREFX/MKFAIL.EXE"
 }
 
