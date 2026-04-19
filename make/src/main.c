@@ -2,6 +2,7 @@
 
 static void print_usage(void) {
     printf("Sprinter make %s\n", MAKE_VERSION);
+    printf("Author: Dmitry Mikhalchenkov\n");
     printf("Usage: make [-n] [-f FILE] [target]\n");
     printf("       make /?\n");
     printf("Options:\n");
@@ -127,6 +128,7 @@ void main(void) {
     u8 disk;
 
     printf("Sprinter make %s\n", MAKE_VERSION);
+    printf("Author: Dmitry Mikhalchenkov\n");
     MAKE_STAGE("main: banner printed");
 
     MAKE_STAGE("main: ctx_init start");
