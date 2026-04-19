@@ -11,6 +11,7 @@ Current status: Level 1 MVP (initial).
 - Options:
   - `-q` brief output (report only if files differ)
   - `-s` report when files are identical
+  - `-o FILE` write diff output to file (DSS-friendly replacement for shell redirection)
   - `-h`, `-H`, `/?` help
 - Exit codes:
   - `0` identical
@@ -19,13 +20,12 @@ Current status: Level 1 MVP (initial).
 
 ## Current limits
 
-MVP uses fixed buffers for predictable memory usage on DSS:
+MVP uses streaming comparison and supports large files (including `64KB+` text files) without loading full files into RAM.
 
-- up to `64` lines per file
-- up to `160` characters per line
-- shared internal text pool: `4096` bytes
+- max line length: `255` characters
+- lookahead window for resync: `8` lines
 
-When limits are exceeded, the tool exits with code `2` and a clear error message.
+If a line is longer than the limit, the tool exits with code `2` and a clear error message.
 
 ## Build
 
@@ -57,6 +57,7 @@ Examples:
 diff a.txt b.txt
 diff -q a.txt b.txt
 diff -s a.txt b.txt
+diff -o result.dif a.txt b.txt
 ```
 
 ## Roadmap

@@ -2,10 +2,12 @@
 
 static void print_usage(void) {
     printf("Sprinter diff %s\n", DIFF_VERSION);
+    printf("Author: Dmitry Mikhalchenkov\n");
     printf("Usage: diff [OPTION]... FILE1 FILE2\n");
     printf("Options:\n");
     printf("  -q        report only whether files differ\n");
     printf("  -s        report when two files are the same\n");
+    printf("  -o FILE   write diff output to FILE\n");
     printf("  -H,-h,/?  show this help\n");
 }
 
@@ -57,6 +59,7 @@ static int parse_opts(diff_opts_t *opts) {
     int files;
 
     memset(opts, 0, sizeof(diff_opts_t));
+    opts->out_path[0] = '\0';
     opts->left[0] = '\0';
     opts->right[0] = '\0';
 
@@ -65,7 +68,7 @@ static int parse_opts(diff_opts_t *opts) {
 
     files = 0;
     for (i = 0; i < argc; i++) {
-        if (!util_streq(argv[i], "-q") && !util_streq(argv[i], "-s") && !util_streq(argv[i], "-H") && !util_streq(argv[i], "-h") && !util_streq(argv[i], "/?")) {
+        if (!util_streq(argv[i], "-q") && !util_streq(argv[i], "-s") && !util_streq(argv[i], "-o") && !util_streq(argv[i], "-H") && !util_streq(argv[i], "-h") && !util_streq(argv[i], "/?")) {
             int j;
             int bad;
             bad = 0;
@@ -87,6 +90,13 @@ static int parse_opts(diff_opts_t *opts) {
             opts->brief = 1;
         } else if (util_streq(argv[i], "-s")) {
             opts->report_identical = 1;
+        } else if (util_streq(argv[i], "-o")) {
+            if (i + 1 >= argc) {
+                printf("diff: option -o requires a file name\n");
+                return 0;
+            }
+            strncpy(opts->out_path, argv[++i], sizeof(opts->out_path) - 1);
+            opts->out_path[sizeof(opts->out_path) - 1] = '\0';
         } else if (argv[i][0] == '-') {
             printf("diff: unrecognized option '%s'\n", argv[i]);
             return 0;
@@ -118,6 +128,7 @@ static diff_ctx_t g_ctx;
 
 void main(void) {
     diff_opts_t opts;
+    FILE *out_fp;
     int has_diff;
     char err[MAX_TEXT];
 
@@ -135,21 +146,34 @@ void main(void) {
         return;
     }
 
+    if (opts.out_path[0] != '\0') {
+        if (util_streq(opts.out_path, opts.left) || util_streq(opts.out_path, opts.right)) {
+            printf("diff: output file must differ from input files\n");
+            dss_exit(2);
+            return;
+        }
+    }
+
+    out_fp = stdout;
+    if (!opts.brief && opts.out_path[0] != '\0') {
+        out_fp = fopen(opts.out_path, "w");
+        if (out_fp == (FILE *)0) {
+            printf("diff: cannot open output '%s'\n", opts.out_path);
+            dss_exit(2);
+            return;
+        }
+    }
+    g_ctx.out = out_fp;
+
     err[0] = '\0';
-    if (!read_text_lines(&g_ctx, opts.left, g_ctx.a, &g_ctx.a_count, err, sizeof(err))) {
+    if (!diff_compare_files(&g_ctx, opts.left, opts.right, (unsigned char)(opts.brief ? 0 : 1), &has_diff, err, sizeof(err))) {
+        if (out_fp != stdout) {
+            fclose(out_fp);
+        }
         printf("diff: %s\n", err);
         dss_exit(2);
         return;
     }
-
-    if (!read_text_lines(&g_ctx, opts.right, g_ctx.b, &g_ctx.b_count, err, sizeof(err))) {
-        printf("diff: %s\n", err);
-        dss_exit(2);
-        return;
-    }
-
-    diff_build_lcs(&g_ctx);
-    has_diff = diff_has_changes(&g_ctx);
 
     if (opts.brief) {
         if (has_diff) {
@@ -162,9 +186,15 @@ void main(void) {
     }
 
     if (has_diff) {
-        diff_emit_normal(&g_ctx);
+        if (out_fp != stdout) {
+            fclose(out_fp);
+        }
         dss_exit(1);
         return;
+    }
+
+    if (out_fp != stdout) {
+        fclose(out_fp);
     }
 
     if (opts.report_identical) {

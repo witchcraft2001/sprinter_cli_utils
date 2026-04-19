@@ -9,6 +9,7 @@ Usage
 Options
 - -q        report only whether files differ
 - -s        report when files are identical
+- -o FILE   write diff output to FILE
 - -H -h /?  show help
 
 Exit codes
@@ -17,9 +18,9 @@ Exit codes
 - 2  error (bad args, file read error, limits exceeded)
 
 Current MVP limits
-- Max lines per file: 64
-- Max line length: 160 characters
-- Shared text memory pool: 4096 bytes
+- Supports large text files (64KB and more) using streaming compare
+- Max line length: 255 characters
+- Internal resync lookahead: 8 lines
 
 Notes
 - This is a text diff utility.

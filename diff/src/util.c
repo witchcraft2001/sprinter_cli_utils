@@ -2,21 +2,7 @@
 
 void ctx_init(diff_ctx_t *ctx) {
     memset(ctx, 0, sizeof(diff_ctx_t));
-}
-
-const char *ctx_strdup(diff_ctx_t *ctx, const char *s) {
-    unsigned int n;
-    char *dst;
-
-    n = (unsigned int)strlen(s) + 1u;
-    if (ctx->text_pool_pos + n > TEXT_POOL_SIZE) {
-        return (const char *)0;
-    }
-
-    dst = &ctx->text_pool[ctx->text_pool_pos];
-    memcpy(dst, s, n);
-    ctx->text_pool_pos += n;
-    return dst;
+    ctx->out = stdout;
 }
 
 void util_rtrim(char *s) {

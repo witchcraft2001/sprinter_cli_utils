@@ -90,10 +90,10 @@ copy_make_payload() {
 
   mcopy -i "$image_path" -o "$repo_root/make/make.exe" "$utility_root/MAKE.EXE"
   cp "$repo_root/make/make.exe" "$zip_root/MAKE.EXE"
-  cp "$repo_root/make/readme.txt" "$zip_root/README.TXT"
+  cp "$repo_root/make/make.txt" "$zip_root/MAKE.TXT"
 
   mcopy -i "$image_path" -o "$repo_root/make/examples/README.md" "$utility_root/EXAMPLES/README.MD"
-  mcopy -i "$image_path" -o "$repo_root/make/readme.txt" "$utility_root/README.TXT"
+  mcopy -i "$image_path" -o "$repo_root/make/make.txt" "$utility_root/MAKE.TXT"
   mcopy -i "$image_path" -o "$repo_root/make/examples/01_basic/Makefile" "$utility_root/EXAMPLES/01_BASIC/MAKEFILE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/02_prefixes/Makefile" "$utility_root/EXAMPLES/02_PREFX/MAKEFILE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/03_multifile/Makefile" "$utility_root/EXAMPLES/03_MULTI/MAKEFILE"
@@ -141,7 +141,7 @@ copy_diff_payload() {
   mkdir -p "$zip_root/EXAMPLES/03_CHANG"
 
   mcopy -i "$image_path" -o "$repo_root/diff/diff.exe" "$utility_root/DIFF.EXE"
-  mcopy -i "$image_path" -o "$repo_root/diff/readme.txt" "$utility_root/README.TXT"
+  mcopy -i "$image_path" -o "$repo_root/diff/diff.txt" "$utility_root/DIFF.TXT"
   mcopy -i "$image_path" -o "$repo_root/diff/examples/README.md" "$utility_root/EXAMPLES/README.MD"
   mcopy -i "$image_path" -o "$repo_root/diff/examples/01_identical/A.TXT" "$utility_root/EXAMPLES/01_IDENT/A.TXT"
   mcopy -i "$image_path" -o "$repo_root/diff/examples/01_identical/B.TXT" "$utility_root/EXAMPLES/01_IDENT/B.TXT"
@@ -151,7 +151,7 @@ copy_diff_payload() {
   mcopy -i "$image_path" -o "$repo_root/diff/examples/03_change_blocks/B.TXT" "$utility_root/EXAMPLES/03_CHANG/B.TXT"
 
   cp "$repo_root/diff/diff.exe" "$zip_root/DIFF.EXE"
-  cp "$repo_root/diff/readme.txt" "$zip_root/README.TXT"
+  cp "$repo_root/diff/diff.txt" "$zip_root/DIFF.TXT"
   cp "$repo_root/diff/examples/README.md" "$zip_root/EXAMPLES/README.MD"
   cp "$repo_root/diff/examples/01_identical/A.TXT" "$zip_root/EXAMPLES/01_IDENT/A.TXT"
   cp "$repo_root/diff/examples/01_identical/B.TXT" "$zip_root/EXAMPLES/01_IDENT/B.TXT"

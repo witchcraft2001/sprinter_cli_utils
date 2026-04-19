@@ -1,152 +1,179 @@
 #include "diff.h"
 
-static int lines_equal(const char *a, const char *b) {
-    return util_streq(a, b);
+static void print_range(FILE *out, unsigned int start, unsigned int end, unsigned int empty_anchor) {
+    if (start > end) {
+        fprintf(out, "%u", empty_anchor);
+    } else if (start == end) {
+        fprintf(out, "%u", start);
+    } else {
+        fprintf(out, "%u,%u", start, end);
+    }
 }
 
-void diff_build_lcs(diff_ctx_t *ctx) {
+static void emit_block(diff_ctx_t *ctx, line_stream_t *a, line_stream_t *b, int a_take, int b_take) {
+    FILE *out;
+    unsigned int a_start;
+    unsigned int a_end;
+    unsigned int b_start;
+    unsigned int b_end;
+    int k;
+
+    out = ctx->out;
+
+    a_start = (a_take > 0) ? a->line_no[0] : stream_empty_anchor(a);
+    a_end = (a_take > 0) ? a->line_no[a_take - 1] : a_start;
+    b_start = (b_take > 0) ? b->line_no[0] : stream_empty_anchor(b);
+    b_end = (b_take > 0) ? b->line_no[b_take - 1] : b_start;
+
+    if (a_take == 0) {
+        print_range(out, a_start, a_end, a_end);
+        fprintf(out, "a");
+        print_range(out, b_start, b_end, b_end);
+        fprintf(out, "\n");
+        for (k = 0; k < b_take; k++) {
+            fprintf(out, "> %s\n", b->lines[k]);
+        }
+        return;
+    }
+
+    if (b_take == 0) {
+        print_range(out, a_start, a_end, a_end);
+        fprintf(out, "d");
+        print_range(out, b_start, b_end, b_end);
+        fprintf(out, "\n");
+        for (k = 0; k < a_take; k++) {
+            fprintf(out, "< %s\n", a->lines[k]);
+        }
+        return;
+    }
+
+    print_range(out, a_start, a_end, a_end);
+    fprintf(out, "c");
+    print_range(out, b_start, b_end, b_end);
+    fprintf(out, "\n");
+    for (k = 0; k < a_take; k++) {
+        fprintf(out, "< %s\n", a->lines[k]);
+    }
+    fprintf(out, "---\n");
+    for (k = 0; k < b_take; k++) {
+        fprintf(out, "> %s\n", b->lines[k]);
+    }
+}
+
+static void find_resync(line_stream_t *a, line_stream_t *b, int *best_i, int *best_j) {
     int i;
     int j;
-    int n;
-    int m;
-    unsigned char prev[MAX_LINES + 1];
-    unsigned char curr[MAX_LINES + 1];
+    int found;
+    int best_cost;
 
-    n = ctx->a_count;
-    m = ctx->b_count;
+    found = 0;
+    best_cost = 0x7FFF;
+    *best_i = 0;
+    *best_j = 0;
 
-    memset(prev, 0, sizeof(prev));
-    memset(curr, 0, sizeof(curr));
+    for (i = 0; i < (int)a->count; i++) {
+        for (j = 0; j < (int)b->count; j++) {
+            int cost;
 
-    for (i = n - 1; i >= 0; i--) {
-        curr[m] = 0;
-        for (j = m - 1; j >= 0; j--) {
-            if (lines_equal(ctx->a[i], ctx->b[j])) {
-                curr[j] = (unsigned char)(prev[j + 1] + 1);
-                ctx->dir[i][j] = (unsigned char)'M';
-            } else if (prev[j] >= curr[j + 1]) {
-                curr[j] = prev[j];
-                ctx->dir[i][j] = (unsigned char)'U';
-            } else {
-                curr[j] = curr[j + 1];
-                ctx->dir[i][j] = (unsigned char)'L';
+            if (i == 0 && j == 0) {
+                continue;
+            }
+            if (!util_streq(a->lines[i], b->lines[j])) {
+                continue;
+            }
+
+            cost = i + j;
+            if (!found || cost < best_cost) {
+                found = 1;
+                best_cost = cost;
+                *best_i = i;
+                *best_j = j;
             }
         }
-        memcpy(prev, curr, sizeof(prev));
     }
 
-    for (i = 0; i <= n; i++) {
-        ctx->dir[i][m] = (unsigned char)'U';
-    }
-    for (j = 0; j <= m; j++) {
-        ctx->dir[n][j] = (unsigned char)'L';
+    if (found) {
+        return;
     }
 
-    if (n == 0 || m == 0) {
-        ctx->lcs_len = 0;
+    if (a->count > 0 && b->count > 0) {
+        *best_i = 1;
+        *best_j = 1;
+    } else if (a->count > 0) {
+        *best_i = 1;
+        *best_j = 0;
     } else {
-        ctx->lcs_len = prev[0];
-    }
-    if (n == 0 && m == 0) {
-        ctx->lcs_len = 0;
+        *best_i = 0;
+        *best_j = 1;
     }
 }
 
-int diff_has_changes(const diff_ctx_t *ctx) {
-    if (ctx->a_count != ctx->b_count) {
-        return 1;
+int diff_compare_files(diff_ctx_t *ctx, const char *left, const char *right, unsigned char emit, int *has_diff, char *err, int err_sz) {
+    FILE *fa;
+    FILE *fb;
+    line_stream_t *a;
+    line_stream_t *b;
+
+    *has_diff = 0;
+
+    fa = fopen(left, "r");
+    if (fa == (FILE *)0) {
+        util_set_error(err, err_sz, "cannot open ", left);
+        return 0;
     }
-    return (ctx->lcs_len != (unsigned char)ctx->a_count);
-}
 
-static void print_range(int start, int end, int empty_anchor) {
-    if (start > end) {
-        printf("%d", empty_anchor);
-    } else if (start == end) {
-        printf("%d", start);
-    } else {
-        printf("%d,%d", start, end);
+    fb = fopen(right, "r");
+    if (fb == (FILE *)0) {
+        fclose(fa);
+        util_set_error(err, err_sz, "cannot open ", right);
+        return 0;
     }
-}
 
-void diff_emit_normal(const diff_ctx_t *ctx) {
-    int i;
-    int j;
-    int n;
-    int m;
+    a = &ctx->left_stream;
+    b = &ctx->right_stream;
+    stream_init(a, fa);
+    stream_init(b, fb);
 
-    n = ctx->a_count;
-    m = ctx->b_count;
-    i = 0;
-    j = 0;
+    while (1) {
+        if (!stream_fill(a, 1, err, err_sz, left) || !stream_fill(b, 1, err, err_sz, right)) {
+            fclose(fa);
+            fclose(fb);
+            return 0;
+        }
 
-    while (i < n || j < m) {
-        int ai;
-        int bj;
-        int a_start;
-        int b_start;
-        int a_end;
-        int b_end;
-        int k;
+        if (a->count == 0 && b->count == 0) {
+            break;
+        }
 
-        if (i < n && j < m && lines_equal(ctx->a[i], ctx->b[j])) {
-            i++;
-            j++;
+        if (a->count > 0 && b->count > 0 && util_streq(a->lines[0], b->lines[0])) {
+            stream_consume(a, 1);
+            stream_consume(b, 1);
             continue;
         }
 
-        ai = i;
-        bj = j;
-        a_start = ai + 1;
-        b_start = bj + 1;
-
-        while (i < n || j < m) {
-            if (i < n && j < m && lines_equal(ctx->a[i], ctx->b[j])) {
-                break;
-            }
-
-            if (i >= n) {
-                j++;
-            } else if (j >= m) {
-                i++;
-            } else if (ctx->dir[i][j] == (unsigned char)'L') {
-                j++;
-            } else {
-                i++;
-            }
+        *has_diff = 1;
+        if (!emit) {
+            break;
         }
 
-        a_end = i;
-        b_end = j;
+        if (!stream_fill(a, LOOKAHEAD_LINES, err, err_sz, left) || !stream_fill(b, LOOKAHEAD_LINES, err, err_sz, right)) {
+            fclose(fa);
+            fclose(fb);
+            return 0;
+        }
 
-        if (a_start > a_end) {
-            print_range(a_start, a_end, a_end);
-            printf("a");
-            print_range(b_start, b_end, b_end);
-            printf("\n");
-            for (k = b_start; k <= b_end; k++) {
-                printf("> %s\n", ctx->b[k - 1]);
-            }
-        } else if (b_start > b_end) {
-            print_range(a_start, a_end, a_end);
-            printf("d");
-            print_range(b_start, b_end, b_end);
-            printf("\n");
-            for (k = a_start; k <= a_end; k++) {
-                printf("< %s\n", ctx->a[k - 1]);
-            }
-        } else {
-            print_range(a_start, a_end, a_end);
-            printf("c");
-            print_range(b_start, b_end, b_end);
-            printf("\n");
-            for (k = a_start; k <= a_end; k++) {
-                printf("< %s\n", ctx->a[k - 1]);
-            }
-            printf("---\n");
-            for (k = b_start; k <= b_end; k++) {
-                printf("> %s\n", ctx->b[k - 1]);
-            }
+        {
+            int a_take;
+            int b_take;
+
+            find_resync(a, b, &a_take, &b_take);
+            emit_block(ctx, a, b, a_take, b_take);
+            stream_consume(a, a_take);
+            stream_consume(b, b_take);
         }
     }
+
+    fclose(fa);
+    fclose(fb);
+    return 1;
 }
