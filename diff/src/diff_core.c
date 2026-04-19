@@ -66,7 +66,8 @@ static void emit_block_normal(diff_ctx_t *ctx, line_stream_t *a, line_stream_t *
 
 static void emit_block_unified(diff_ctx_t *ctx,
                                const char hist[MAX_UNIFIED_CONTEXT][MAX_LINE + 1],
-                               const unsigned int hist_line_no[MAX_UNIFIED_CONTEXT],
+                               const unsigned int hist_left_no[MAX_UNIFIED_CONTEXT],
+                               const unsigned int hist_right_no[MAX_UNIFIED_CONTEXT],
                                int hist_count,
                                line_stream_t *a,
                                line_stream_t *b,
@@ -97,8 +98,8 @@ static void emit_block_unified(diff_ctx_t *ctx,
     }
 
     if (pre > 0) {
-        old_start = hist_line_no[hist_count - pre];
-        new_start = old_start;
+        old_start = hist_left_no[hist_count - pre];
+        new_start = hist_right_no[hist_count - pre];
     } else {
         old_start = (a_take > 0) ? a->line_no[0] : stream_empty_anchor(a) + 1u;
         new_start = (b_take > 0) ? b->line_no[0] : stream_empty_anchor(b) + 1u;
@@ -175,22 +176,31 @@ static void find_resync(line_stream_t *a, line_stream_t *b, int *best_i, int *be
     }
 }
 
-static void history_push(char hist[MAX_UNIFIED_CONTEXT][MAX_LINE + 1], unsigned int hist_line_no[MAX_UNIFIED_CONTEXT], int *hist_count, const char *line, unsigned int line_no) {
+static void history_push(char hist[MAX_UNIFIED_CONTEXT][MAX_LINE + 1],
+                         unsigned int hist_left_no[MAX_UNIFIED_CONTEXT],
+                         unsigned int hist_right_no[MAX_UNIFIED_CONTEXT],
+                         int *hist_count,
+                         const char *line,
+                         unsigned int left_no,
+                         unsigned int right_no) {
     int i;
 
     if (*hist_count < MAX_UNIFIED_CONTEXT) {
         strcpy(hist[*hist_count], line);
-        hist_line_no[*hist_count] = line_no;
+        hist_left_no[*hist_count] = left_no;
+        hist_right_no[*hist_count] = right_no;
         (*hist_count)++;
         return;
     }
 
     for (i = 1; i < MAX_UNIFIED_CONTEXT; i++) {
         strcpy(hist[i - 1], hist[i]);
-        hist_line_no[i - 1] = hist_line_no[i];
+        hist_left_no[i - 1] = hist_left_no[i];
+        hist_right_no[i - 1] = hist_right_no[i];
     }
     strcpy(hist[MAX_UNIFIED_CONTEXT - 1], line);
-    hist_line_no[MAX_UNIFIED_CONTEXT - 1] = line_no;
+    hist_left_no[MAX_UNIFIED_CONTEXT - 1] = left_no;
+    hist_right_no[MAX_UNIFIED_CONTEXT - 1] = right_no;
 }
 
 int diff_compare_files(diff_ctx_t *ctx, const char *left, const char *right, unsigned char emit, unsigned char mode, unsigned char unified_context, int *has_diff, char *err, int err_sz) {
@@ -236,7 +246,13 @@ int diff_compare_files(diff_ctx_t *ctx, const char *left, const char *right, uns
 
         if (a->count > 0 && b->count > 0 && util_streq(a->lines[0], b->lines[0])) {
             if (mode == DIFF_MODE_UNIFIED) {
-                history_push(ctx->unified_hist, ctx->unified_hist_line_no, &hist_count, a->lines[0], a->line_no[0]);
+                history_push(ctx->unified_hist,
+                             ctx->unified_hist_left_no,
+                             ctx->unified_hist_right_no,
+                             &hist_count,
+                             a->lines[0],
+                             a->line_no[0],
+                             b->line_no[0]);
             }
             stream_consume(a, 1);
             stream_consume(b, 1);
@@ -265,7 +281,16 @@ int diff_compare_files(diff_ctx_t *ctx, const char *left, const char *right, uns
                     fprintf(ctx->out, "+++ %s\n", right);
                     header_printed = 1;
                 }
-                emit_block_unified(ctx, ctx->unified_hist, ctx->unified_hist_line_no, hist_count, a, b, a_take, b_take, unified_context);
+                emit_block_unified(ctx,
+                                   ctx->unified_hist,
+                                   ctx->unified_hist_left_no,
+                                   ctx->unified_hist_right_no,
+                                   hist_count,
+                                   a,
+                                   b,
+                                   a_take,
+                                   b_take,
+                                   unified_context);
                 hist_count = 0;
             } else {
                 emit_block_normal(ctx, a, b, a_take, b_take);

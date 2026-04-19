@@ -58,7 +58,8 @@ typedef struct {
     line_stream_t left_stream;
     line_stream_t right_stream;
     char unified_hist[MAX_UNIFIED_CONTEXT][MAX_LINE + 1];
-    unsigned int unified_hist_line_no[MAX_UNIFIED_CONTEXT];
+    unsigned int unified_hist_left_no[MAX_UNIFIED_CONTEXT];
+    unsigned int unified_hist_right_no[MAX_UNIFIED_CONTEXT];
 } diff_ctx_t;
 
 void ctx_init(diff_ctx_t *ctx);

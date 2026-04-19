@@ -93,7 +93,7 @@ static int parse_opts(diff_opts_t *opts) {
 
     files = 0;
     for (i = 0; i < argc; i++) {
-        if (!util_streq(argv[i], "-q") && !util_streq(argv[i], "-s") && !util_streq(argv[i], "-u") && !util_streq(argv[i], "-U") && !util_streq(argv[i], "-o") && !util_streq(argv[i], "-H") && !util_streq(argv[i], "-h") && !util_streq(argv[i], "/?")) {
+        if (!util_streq(argv[i], "-q") && !util_streq(argv[i], "-s") && !util_streq(argv[i], "-u") && !util_streq(argv[i], "-U") && !util_streq(argv[i], "-o") && !util_streq(argv[i], "-H") && !util_streq(argv[i], "-h") && !util_streq(argv[i], "/?") && !(argv[i][0] == '-' && argv[i][1] == 'U' && argv[i][2] != '\0')) {
             int j;
             int bad;
             bad = 0;
@@ -127,6 +127,19 @@ static int parse_opts(diff_opts_t *opts) {
             }
             if (!parse_uint(argv[++i], &n)) {
                 printf("diff: invalid context length '%s'\n", argv[i]);
+                return 0;
+            }
+            opts->mode = DIFF_MODE_UNIFIED;
+            if (n > MAX_UNIFIED_CONTEXT) {
+                printf("diff: context too large (max %d)\n", MAX_UNIFIED_CONTEXT);
+                return 0;
+            }
+            opts->unified_context = (unsigned char)n;
+        } else if (argv[i][0] == '-' && argv[i][1] == 'U' && argv[i][2] != '\0') {
+            int n;
+
+            if (!parse_uint(argv[i] + 2, &n)) {
+                printf("diff: invalid context length '%s'\n", argv[i] + 2);
                 return 0;
             }
             opts->mode = DIFF_MODE_UNIFIED;
