@@ -7,6 +7,9 @@ static void print_usage(void) {
     printf("Options:\n");
     printf("  -q        report only whether files differ\n");
     printf("  -s        report when two files are the same\n");
+    printf("  -i        ignore case differences\n");
+    printf("  -b        ignore changes in amount of spaces/tabs\n");
+    printf("  -w        ignore all spaces/tabs\n");
     printf("  -u        output unified diff (3 lines context)\n");
     printf("  -U N      output unified diff with N context lines\n");
     printf("  -o FILE   write diff output to FILE\n");
@@ -93,7 +96,7 @@ static int parse_opts(diff_opts_t *opts) {
 
     files = 0;
     for (i = 0; i < argc; i++) {
-        if (!util_streq(argv[i], "-q") && !util_streq(argv[i], "-s") && !util_streq(argv[i], "-u") && !util_streq(argv[i], "-U") && !util_streq(argv[i], "-o") && !util_streq(argv[i], "-H") && !util_streq(argv[i], "-h") && !util_streq(argv[i], "/?") && !(argv[i][0] == '-' && argv[i][1] == 'U' && argv[i][2] != '\0')) {
+        if (!util_streq(argv[i], "-q") && !util_streq(argv[i], "-s") && !util_streq(argv[i], "-i") && !util_streq(argv[i], "-b") && !util_streq(argv[i], "-w") && !util_streq(argv[i], "-u") && !util_streq(argv[i], "-U") && !util_streq(argv[i], "-o") && !util_streq(argv[i], "-H") && !util_streq(argv[i], "-h") && !util_streq(argv[i], "/?") && !(argv[i][0] == '-' && argv[i][1] == 'U' && argv[i][2] != '\0')) {
             int j;
             int bad;
             bad = 0;
@@ -115,6 +118,12 @@ static int parse_opts(diff_opts_t *opts) {
             opts->brief = 1;
         } else if (util_streq(argv[i], "-s")) {
             opts->report_identical = 1;
+        } else if (util_streq(argv[i], "-i")) {
+            opts->ignore_case = 1;
+        } else if (util_streq(argv[i], "-b")) {
+            opts->ignore_space_change = 1;
+        } else if (util_streq(argv[i], "-w")) {
+            opts->ignore_all_space = 1;
         } else if (util_streq(argv[i], "-u")) {
             opts->mode = DIFF_MODE_UNIFIED;
             opts->unified_context = 3;
@@ -224,7 +233,18 @@ void main(void) {
     g_ctx.out = out_fp;
 
     err[0] = '\0';
-    if (!diff_compare_files(&g_ctx, opts.left, opts.right, (unsigned char)(opts.brief ? 0 : 1), opts.mode, opts.unified_context, &has_diff, err, sizeof(err))) {
+    if (!diff_compare_files(&g_ctx,
+                            opts.left,
+                            opts.right,
+                            (unsigned char)(opts.brief ? 0 : 1),
+                            opts.mode,
+                            opts.unified_context,
+                            opts.ignore_case,
+                            opts.ignore_space_change,
+                            opts.ignore_all_space,
+                            &has_diff,
+                            err,
+                            sizeof(err))) {
         if (out_fp != stdout) {
             fclose(out_fp);
         }

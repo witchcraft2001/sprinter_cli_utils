@@ -39,6 +39,9 @@ typedef struct {
     unsigned char show_help;
     unsigned char mode;
     unsigned char unified_context;
+    unsigned char ignore_case;
+    unsigned char ignore_space_change;
+    unsigned char ignore_all_space;
     char out_path[MAX_PATH_TEXT];
     char left[MAX_PATH_TEXT];
     char right[MAX_PATH_TEXT];
@@ -76,6 +79,17 @@ int stream_fill(line_stream_t *s, int need, char *err, int err_sz, const char *p
 void stream_consume(line_stream_t *s, int n);
 unsigned int stream_empty_anchor(const line_stream_t *s);
 
-int diff_compare_files(diff_ctx_t *ctx, const char *left, const char *right, unsigned char emit, unsigned char mode, unsigned char unified_context, int *has_diff, char *err, int err_sz);
+int diff_compare_files(diff_ctx_t *ctx,
+                       const char *left,
+                       const char *right,
+                       unsigned char emit,
+                       unsigned char mode,
+                       unsigned char unified_context,
+                       unsigned char ignore_case,
+                       unsigned char ignore_space_change,
+                       unsigned char ignore_all_space,
+                       int *has_diff,
+                       char *err,
+                       int err_sz);
 
 #endif

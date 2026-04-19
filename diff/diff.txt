@@ -9,6 +9,9 @@ Usage
 Options
 - -q        report only whether files differ
 - -s        report when files are identical
+- -i        ignore case differences
+- -b        ignore changes in amount of spaces/tabs
+- -w        ignore all spaces/tabs
 - -u        unified diff output (3 lines context)
 - -U N      unified diff output with N context lines
 - -o FILE   write diff output to FILE

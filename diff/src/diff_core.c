@@ -1,5 +1,89 @@
 #include "diff.h"
 
+static int is_hspace(char c) {
+    return c == ' ' || c == '\t';
+}
+
+static char fold_case_char(char c, unsigned char ignore_case) {
+    if (!ignore_case) {
+        return c;
+    }
+    if (c >= 'A' && c <= 'Z') {
+        return (char)(c - 'A' + 'a');
+    }
+    return c;
+}
+
+static int lines_equal_mode(const char *a,
+                            const char *b,
+                            unsigned char ignore_case,
+                            unsigned char ignore_space_change,
+                            unsigned char ignore_all_space) {
+    if (ignore_all_space) {
+        while (*a != '\0' || *b != '\0') {
+            while (*a != '\0' && is_hspace(*a)) {
+                a++;
+            }
+            while (*b != '\0' && is_hspace(*b)) {
+                b++;
+            }
+            if (*a == '\0' || *b == '\0') {
+                break;
+            }
+            if (fold_case_char(*a, ignore_case) != fold_case_char(*b, ignore_case)) {
+                return 0;
+            }
+            a++;
+            b++;
+        }
+        while (*a != '\0' && is_hspace(*a)) {
+            a++;
+        }
+        while (*b != '\0' && is_hspace(*b)) {
+            b++;
+        }
+        return (*a == '\0' && *b == '\0');
+    }
+
+    if (ignore_space_change) {
+        while (*a != '\0' || *b != '\0') {
+            while (*a != '\0' && is_hspace(*a)) {
+                a++;
+            }
+            while (*b != '\0' && is_hspace(*b)) {
+                b++;
+            }
+
+            if (*a == '\0' || *b == '\0') {
+                break;
+            }
+            if (fold_case_char(*a, ignore_case) != fold_case_char(*b, ignore_case)) {
+                return 0;
+            }
+            a++;
+            b++;
+        }
+
+        while (*a != '\0' && is_hspace(*a)) {
+            a++;
+        }
+        while (*b != '\0' && is_hspace(*b)) {
+            b++;
+        }
+        return (*a == '\0' && *b == '\0');
+    }
+
+    while (*a != '\0' && *b != '\0') {
+        if (fold_case_char(*a, ignore_case) != fold_case_char(*b, ignore_case)) {
+            return 0;
+        }
+        a++;
+        b++;
+    }
+
+    return (*a == '\0' && *b == '\0');
+}
+
 static void print_range(FILE *out, unsigned int start, unsigned int end, unsigned int empty_anchor) {
     if (start > end) {
         fprintf(out, "%u", empty_anchor);
@@ -73,7 +157,10 @@ static void emit_block_unified(diff_ctx_t *ctx,
                                line_stream_t *b,
                                int a_take,
                                int b_take,
-                               unsigned char context) {
+                               unsigned char context,
+                               unsigned char ignore_case,
+                               unsigned char ignore_space_change,
+                               unsigned char ignore_all_space) {
     FILE *out;
     int pre;
     int post;
@@ -91,7 +178,7 @@ static void emit_block_unified(diff_ctx_t *ctx,
 
     post = 0;
     while (post < (int)context && a_take + post < (int)a->count && b_take + post < (int)b->count) {
-        if (!util_streq(a->lines[a_take + post], b->lines[b_take + post])) {
+        if (!lines_equal_mode(a->lines[a_take + post], b->lines[b_take + post], ignore_case, ignore_space_change, ignore_all_space)) {
             break;
         }
         post++;
@@ -128,7 +215,13 @@ static void emit_block_unified(diff_ctx_t *ctx,
     }
 }
 
-static void find_resync(line_stream_t *a, line_stream_t *b, int *best_i, int *best_j) {
+static void find_resync(line_stream_t *a,
+                        line_stream_t *b,
+                        unsigned char ignore_case,
+                        unsigned char ignore_space_change,
+                        unsigned char ignore_all_space,
+                        int *best_i,
+                        int *best_j) {
     int i;
     int j;
     int found;
@@ -146,7 +239,7 @@ static void find_resync(line_stream_t *a, line_stream_t *b, int *best_i, int *be
             if (i == 0 && j == 0) {
                 continue;
             }
-            if (!util_streq(a->lines[i], b->lines[j])) {
+            if (!lines_equal_mode(a->lines[i], b->lines[j], ignore_case, ignore_space_change, ignore_all_space)) {
                 continue;
             }
 
@@ -203,7 +296,18 @@ static void history_push(char hist[MAX_UNIFIED_CONTEXT][MAX_LINE + 1],
     hist_right_no[MAX_UNIFIED_CONTEXT - 1] = right_no;
 }
 
-int diff_compare_files(diff_ctx_t *ctx, const char *left, const char *right, unsigned char emit, unsigned char mode, unsigned char unified_context, int *has_diff, char *err, int err_sz) {
+int diff_compare_files(diff_ctx_t *ctx,
+                       const char *left,
+                       const char *right,
+                       unsigned char emit,
+                       unsigned char mode,
+                       unsigned char unified_context,
+                       unsigned char ignore_case,
+                       unsigned char ignore_space_change,
+                       unsigned char ignore_all_space,
+                       int *has_diff,
+                       char *err,
+                       int err_sz) {
     FILE *fa;
     FILE *fb;
     line_stream_t *a;
@@ -244,7 +348,7 @@ int diff_compare_files(diff_ctx_t *ctx, const char *left, const char *right, uns
             break;
         }
 
-        if (a->count > 0 && b->count > 0 && util_streq(a->lines[0], b->lines[0])) {
+        if (a->count > 0 && b->count > 0 && lines_equal_mode(a->lines[0], b->lines[0], ignore_case, ignore_space_change, ignore_all_space)) {
             if (mode == DIFF_MODE_UNIFIED) {
                 history_push(ctx->unified_hist,
                              ctx->unified_hist_left_no,
@@ -274,7 +378,7 @@ int diff_compare_files(diff_ctx_t *ctx, const char *left, const char *right, uns
             int a_take;
             int b_take;
 
-            find_resync(a, b, &a_take, &b_take);
+            find_resync(a, b, ignore_case, ignore_space_change, ignore_all_space, &a_take, &b_take);
             if (mode == DIFF_MODE_UNIFIED) {
                 if (!header_printed) {
                     fprintf(ctx->out, "--- %s\n", left);
@@ -290,7 +394,10 @@ int diff_compare_files(diff_ctx_t *ctx, const char *left, const char *right, uns
                                    b,
                                    a_take,
                                    b_take,
-                                   unified_context);
+                                   unified_context,
+                                   ignore_case,
+                                   ignore_space_change,
+                                   ignore_all_space);
                 hist_count = 0;
             } else {
                 emit_block_normal(ctx, a, b, a_take, b_take);
