@@ -7,6 +7,7 @@ static void print_usage(void) {
     printf("Options:\n");
     printf("  -q        report only whether files differ\n");
     printf("  -s        report when two files are the same\n");
+    printf("  -a        treat all files as text\n");
     printf("  -i        ignore case differences\n");
     printf("  -b        ignore changes in amount of spaces/tabs\n");
     printf("  -w        ignore all spaces/tabs\n");
@@ -96,7 +97,7 @@ static int parse_opts(diff_opts_t *opts) {
 
     files = 0;
     for (i = 0; i < argc; i++) {
-        if (!util_streq(argv[i], "-q") && !util_streq(argv[i], "-s") && !util_streq(argv[i], "-i") && !util_streq(argv[i], "-b") && !util_streq(argv[i], "-w") && !util_streq(argv[i], "-u") && !util_streq(argv[i], "-U") && !util_streq(argv[i], "-o") && !util_streq(argv[i], "-H") && !util_streq(argv[i], "-h") && !util_streq(argv[i], "/?") && !(argv[i][0] == '-' && argv[i][1] == 'U' && argv[i][2] != '\0')) {
+        if (!util_streq(argv[i], "-q") && !util_streq(argv[i], "-s") && !util_streq(argv[i], "-a") && !util_streq(argv[i], "-i") && !util_streq(argv[i], "-b") && !util_streq(argv[i], "-w") && !util_streq(argv[i], "-u") && !util_streq(argv[i], "-U") && !util_streq(argv[i], "-o") && !util_streq(argv[i], "-H") && !util_streq(argv[i], "-h") && !util_streq(argv[i], "/?") && !(argv[i][0] == '-' && argv[i][1] == 'U' && argv[i][2] != '\0')) {
             int j;
             int bad;
             bad = 0;
@@ -118,6 +119,8 @@ static int parse_opts(diff_opts_t *opts) {
             opts->brief = 1;
         } else if (util_streq(argv[i], "-s")) {
             opts->report_identical = 1;
+        } else if (util_streq(argv[i], "-a")) {
+            opts->force_text = 1;
         } else if (util_streq(argv[i], "-i")) {
             opts->ignore_case = 1;
         } else if (util_streq(argv[i], "-b")) {
@@ -196,6 +199,9 @@ static diff_ctx_t g_ctx;
 void main(void) {
     diff_opts_t opts;
     FILE *out_fp;
+    int left_binary;
+    int right_binary;
+    int same_binary;
     int has_diff;
     char err[MAX_TEXT];
 
@@ -231,6 +237,56 @@ void main(void) {
         }
     }
     g_ctx.out = out_fp;
+
+    if (!opts.force_text) {
+        if (!diff_probe_binary(opts.left, &left_binary, err, sizeof(err))) {
+            if (out_fp != stdout) {
+                fclose(out_fp);
+            }
+            printf("diff: %s\n", err);
+            dss_exit(2);
+            return;
+        }
+        if (!diff_probe_binary(opts.right, &right_binary, err, sizeof(err))) {
+            if (out_fp != stdout) {
+                fclose(out_fp);
+            }
+            printf("diff: %s\n", err);
+            dss_exit(2);
+            return;
+        }
+
+        if (left_binary || right_binary) {
+            if (!diff_compare_binary_files(opts.left, opts.right, &same_binary, err, sizeof(err))) {
+                if (out_fp != stdout) {
+                    fclose(out_fp);
+                }
+                printf("diff: %s\n", err);
+                dss_exit(2);
+                return;
+            }
+
+            if (!same_binary) {
+                if (opts.brief || out_fp == stdout) {
+                    printf("Binary files %s and %s differ\n", opts.left, opts.right);
+                } else {
+                    fprintf(out_fp, "Binary files %s and %s differ\n", opts.left, opts.right);
+                    fclose(out_fp);
+                }
+                dss_exit(1);
+                return;
+            }
+
+            if (out_fp != stdout) {
+                fclose(out_fp);
+            }
+            if (opts.report_identical) {
+                printf("Files %s and %s are identical\n", opts.left, opts.right);
+            }
+            dss_exit(0);
+            return;
+        }
+    }
 
     err[0] = '\0';
     if (!diff_compare_files(&g_ctx,

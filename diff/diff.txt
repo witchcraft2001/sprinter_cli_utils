@@ -9,6 +9,7 @@ Usage
 Options
 - -q        report only whether files differ
 - -s        report when files are identical
+- -a        treat all files as text
 - -i        ignore case differences
 - -b        ignore changes in amount of spaces/tabs
 - -w        ignore all spaces/tabs
@@ -29,5 +30,9 @@ Current MVP limits
 
 Notes
 - This is a text diff utility.
+- Binary content is detected automatically. If files differ in binary mode,
+  message is: Binary files A and B differ.
+- For identical binary files, output is silent unless -s is used.
+- Use -a to force text processing.
 - Output format by default is normal diff (a/d/c blocks).
-- Future levels add unified format (-u), ignore-space/case, and directory mode.
+- Future levels add directory mode and broader GNU compatibility.

@@ -296,6 +296,102 @@ static void history_push(char hist[MAX_UNIFIED_CONTEXT][MAX_LINE + 1],
     hist_right_no[MAX_UNIFIED_CONTEXT - 1] = right_no;
 }
 
+int diff_probe_binary(const char *path, int *is_binary, char *err, int err_sz) {
+    FILE *fp;
+    unsigned char buf[128];
+    unsigned int total;
+
+    *is_binary = 0;
+    fp = fopen(path, "r");
+    if (fp == (FILE *)0) {
+        util_set_error(err, err_sz, "cannot open ", path);
+        return 0;
+    }
+
+    total = 0;
+    while (total < 1024u) {
+        unsigned int want;
+        unsigned int got;
+        unsigned int i;
+
+        want = (unsigned int)sizeof(buf);
+        if (want > 1024u - total) {
+            want = 1024u - total;
+        }
+
+        got = fread(buf, 1u, want, fp);
+        if (got == 0u) {
+            break;
+        }
+
+        for (i = 0; i < got; i++) {
+            if (buf[i] == 0u) {
+                *is_binary = 1;
+                fclose(fp);
+                return 1;
+            }
+        }
+        total += got;
+    }
+
+    fclose(fp);
+    return 1;
+}
+
+int diff_compare_binary_files(const char *left, const char *right, int *same, char *err, int err_sz) {
+    FILE *fa;
+    FILE *fb;
+    unsigned char ba[256];
+    unsigned char bb[256];
+
+    *same = 0;
+
+    fa = fopen(left, "r");
+    if (fa == (FILE *)0) {
+        util_set_error(err, err_sz, "cannot open ", left);
+        return 0;
+    }
+
+    fb = fopen(right, "r");
+    if (fb == (FILE *)0) {
+        fclose(fa);
+        util_set_error(err, err_sz, "cannot open ", right);
+        return 0;
+    }
+
+    while (1) {
+        unsigned int ra;
+        unsigned int rb;
+        unsigned int i;
+
+        ra = fread(ba, 1u, sizeof(ba), fa);
+        rb = fread(bb, 1u, sizeof(bb), fb);
+
+        if (ra != rb) {
+            *same = 0;
+            fclose(fa);
+            fclose(fb);
+            return 1;
+        }
+
+        for (i = 0; i < ra; i++) {
+            if (ba[i] != bb[i]) {
+                *same = 0;
+                fclose(fa);
+                fclose(fb);
+                return 1;
+            }
+        }
+
+        if (ra == 0u) {
+            *same = 1;
+            fclose(fa);
+            fclose(fb);
+            return 1;
+        }
+    }
+}
+
 int diff_compare_files(diff_ctx_t *ctx,
                        const char *left,
                        const char *right,

@@ -37,6 +37,7 @@ typedef struct {
     unsigned char brief;
     unsigned char report_identical;
     unsigned char show_help;
+    unsigned char force_text;
     unsigned char mode;
     unsigned char unified_context;
     unsigned char ignore_case;
@@ -91,5 +92,8 @@ int diff_compare_files(diff_ctx_t *ctx,
                        int *has_diff,
                        char *err,
                        int err_sz);
+
+int diff_probe_binary(const char *path, int *is_binary, char *err, int err_sz);
+int diff_compare_binary_files(const char *left, const char *right, int *same, char *err, int err_sz);
 
 #endif

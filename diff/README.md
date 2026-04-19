@@ -11,6 +11,7 @@ Current status: Level 1 MVP (initial).
 - Options:
   - `-q` brief output (report only if files differ)
   - `-s` report when files are identical
+  - `-a` treat all files as text
   - `-i` ignore case differences
   - `-b` ignore changes in amount of spaces/tabs
   - `-w` ignore all spaces/tabs
@@ -22,6 +23,10 @@ Current status: Level 1 MVP (initial).
   - `0` identical
   - `1` different
   - `2` error
+- Automatic binary detection:
+  - when binary content is detected: `Binary files A and B differ`
+  - use `-a` to force text mode
+  - for identical binary files, output is silent unless `-s` is used
 
 ## Current limits
 
@@ -62,6 +67,7 @@ Examples:
 diff a.txt b.txt
 diff -q a.txt b.txt
 diff -s a.txt b.txt
+diff -a a.txt b.txt
 diff -i a.txt b.txt
 diff -b a.txt b.txt
 diff -w a.txt b.txt
