@@ -17,6 +17,7 @@ void ctx_init(make_ctx_t *ctx) {
     ctx->target_count = 0;
     ctx->first_target_idx = 0xFF;
     ctx->var_count = 0;
+    ctx->did_work = 0;
     ctx->text_pool_pos = 0;
 }
 

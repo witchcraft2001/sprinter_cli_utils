@@ -83,6 +83,7 @@ typedef struct {
     unsigned char first_target_idx;
     variable_t vars[MAX_VARS];
     unsigned char var_count;
+    unsigned char did_work;
     char text_pool[TEXT_POOL_SIZE];
     unsigned int text_pool_pos;
 } make_ctx_t;

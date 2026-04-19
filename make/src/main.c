@@ -164,9 +164,11 @@ void main(void) {
     if (!parser_load_file(&g_ctx, opts.makefile)) {
         if (util_streq(opts.makefile, "Makefile")) {
             if (!parser_load_file(&g_ctx, "makefile")) {
-                printf("make: cannot open makefile\n");
-                dss_exit(2);
-                return;
+                if (!parser_load_file(&g_ctx, "MAKEFILE")) {
+                    printf("make: cannot open makefile\n");
+                    dss_exit(2);
+                    return;
+                }
             }
         } else {
             printf("make: cannot open '%s'\n", opts.makefile);
@@ -200,6 +202,10 @@ void main(void) {
     if (rc != 0) {
         dss_exit((unsigned char)1);
         return;
+    }
+
+    if (!g_ctx.did_work) {
+        printf("make: Nothing to be done for `%s'.\n", g_ctx.targets[goal].name);
     }
 
     dss_exit(0);

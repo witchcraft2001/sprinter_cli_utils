@@ -1,52 +1,44 @@
-# make for Sprinter DSS (Iteration 1)
+# make for Sprinter DSS
 
-Small `make` implementation for Estex DSS, written in C with SDCC Sprinter SDK.
+Compact `make` implementation for Estex DSS, written in C with SDCC Sprinter SDK.
 
-Current status: Level 1 MVP.
+Current stable status: Level 1 MVP.
 
-## Implemented
+## Implemented (Level 1)
 
 - Variables: `=` and `:=`
 - Variable references: `$(NAME)`
 - Explicit rules: `target: dep dep`
-- Recipe prefixes: `@` and `-`
+- Recipe prefixes: `@` (silent) and `-` (ignore error)
 - `.PHONY`
-- Timestamp-based rebuild using FAT date/time
-- CLI flags: `-f <file>`, `-n`, goal target argument
+- Timestamp rebuild checks using FAT file date/time
+- CLI options: `-f <file>`, `-n`, `target`
+- Help: `/?`, `-h`, `-H`
+- GNU-style up-to-date message:
+  - `make: Nothing to be done for \`all'.`
 
 ## Not implemented yet
 
 - Pattern rules (`%.o: %.c`)
 - Automatic variables (`$@`, `$<`, `$^`)
-- `$(wildcard ...)`, `$(patsubst ...)`
+- GNU functions (`wildcard`, `patsubst`)
+- include/conditionals and advanced GNU make semantics
 
 ## Build
 
-From this directory:
+From `utils/make`:
 
 ```bash
 make
 ```
 
-This produces `make.exe`.
+Output: `make.exe`.
 
-Default version format is `0.1.YYYYMMDD`.
-
-Build with explicit version:
+Useful build flags:
 
 ```bash
 make VERSION=0.1.20260418
-```
-
-Build with diagnostic logs enabled:
-
-```bash
 make LOG=1
-```
-
-If SDK is not at default relative path, pass:
-
-```bash
 make SDK_DIR=/absolute/path/to/sdcc-sprinter-sdk/
 ```
 
@@ -56,30 +48,43 @@ make SDK_DIR=/absolute/path/to/sdcc-sprinter-sdk/
 make [-n] [-f FILE] [target]
 ```
 
-Help:
+Default makefile lookup order:
 
-```text
-make /?
-make -H
-```
+1. `Makefile`
+2. `makefile`
+3. `MAKEFILE`
 
-Default makefile lookup: `Makefile`, then `makefile`.
+## PATH and utility placement on DSS
+
+`make.exe` runs recipe commands through DSS `EXEC`, so command lookup depends on current directory and `PATH`.
+
+For stable usage on Sprinter DSS, use one of these setups:
+
+1. Place `MAKE.EXE` and required runtime helpers in a system directory already available to your command environment.
+2. Or add the `MAKE` tools directory to `PATH` and keep helper executables there.
+
+Runtime note:
+
+- `MKDEL.EXE` is used by provided `clean` examples and can be useful in real projects.
+- `MKSTAMP.EXE` and `MKFAIL.EXE` are test/training helpers used only by `examples/*` scenarios; they are not required for production makefiles.
+
+If a helper tool is missing from the current directory and not reachable via `PATH`, recipes will fail with `cannot exec` errors.
 
 ## Examples
 
 See `examples/README.md`.
 
-## Floppy image for emulator
+## Packaging
 
-Create a boot/test floppy image with project utilities (currently only `make.exe`):
+From `utils`:
 
 ```bash
-cd ..
 ./run/create_floppy_image.sh
 ```
 
-Optional output image path:
+This script now builds:
 
-```bash
-./run/create_floppy_image.sh /absolute/path/to/utils.img
-```
+- FAT12 image: `build/utils.img`
+- ZIP package (store mode): `dist/utils.zip`
+
+Both packages use the same runtime folder layout for DSS testing.

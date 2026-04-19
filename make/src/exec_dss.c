@@ -97,6 +97,8 @@ int exec_recipe_line(make_ctx_t *ctx, const char *line, const make_opts_t *opts)
         printf("%s\n", g_exec_show);
     }
 
+    ctx->did_work = 1;
+
     MAKE_LOG("make: recipe exec='%s' silent=%d ignore=%d dry=%d\n", g_exec_show, silent, ignore_err, opts->dry_run);
 
     if (opts->dry_run) {
