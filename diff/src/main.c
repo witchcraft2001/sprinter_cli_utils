@@ -202,6 +202,7 @@ void main(void) {
     int left_binary;
     int right_binary;
     int same_binary;
+    int same_exact;
     int has_diff;
     char err[MAX_TEXT];
 
@@ -277,6 +278,28 @@ void main(void) {
                 return;
             }
 
+            if (out_fp != stdout) {
+                fclose(out_fp);
+            }
+            if (opts.report_identical) {
+                printf("Files %s and %s are identical\n", opts.left, opts.right);
+            }
+            dss_exit(0);
+            return;
+        }
+    }
+
+    if (!opts.ignore_case && !opts.ignore_space_change && !opts.ignore_all_space) {
+        if (!diff_compare_binary_files(opts.left, opts.right, &same_exact, err, sizeof(err))) {
+            if (out_fp != stdout) {
+                fclose(out_fp);
+            }
+            printf("diff: %s\n", err);
+            dss_exit(2);
+            return;
+        }
+
+        if (same_exact) {
             if (out_fp != stdout) {
                 fclose(out_fp);
             }

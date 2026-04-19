@@ -11,10 +11,12 @@ static int read_one_line(FILE *fp, char *buf, int buf_sz, int *too_long) {
     len = (int)strlen(buf);
     if (len > 0 && buf[len - 1] != '\n' && buf[len - 1] != '\r') {
         if (!feof(fp)) {
-            int ch;
+            char drop[96];
             *too_long = 1;
-            while ((ch = fgetc(fp)) != EOF) {
-                if (ch == '\n') {
+            while (fgets(drop, sizeof(drop), fp) != (char *)0) {
+                int dlen;
+                dlen = (int)strlen(drop);
+                if (dlen > 0 && (drop[dlen - 1] == '\n' || drop[dlen - 1] == '\r')) {
                     break;
                 }
             }
