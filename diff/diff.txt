@@ -9,6 +9,8 @@ Usage
 Options
 - -q        report only whether files differ
 - -s        report when files are identical
+- -u        unified diff output (3 lines context)
+- -U N      unified diff output with N context lines
 - -o FILE   write diff output to FILE
 - -H -h /?  show help
 

@@ -7,8 +7,31 @@ static void print_usage(void) {
     printf("Options:\n");
     printf("  -q        report only whether files differ\n");
     printf("  -s        report when two files are the same\n");
+    printf("  -u        output unified diff (3 lines context)\n");
+    printf("  -U N      output unified diff with N context lines\n");
     printf("  -o FILE   write diff output to FILE\n");
     printf("  -H,-h,/?  show this help\n");
+}
+
+static int parse_uint(const char *s, int *out) {
+    int v;
+
+    if (*s == '\0') {
+        return 0;
+    }
+    v = 0;
+    while (*s != '\0') {
+        if (*s < '0' || *s > '9') {
+            return 0;
+        }
+        v = v * 10 + (*s - '0');
+        if (v > 255) {
+            return 0;
+        }
+        s++;
+    }
+    *out = v;
+    return 1;
 }
 
 static int is_safe_arg_char(char c) {
@@ -59,6 +82,8 @@ static int parse_opts(diff_opts_t *opts) {
     int files;
 
     memset(opts, 0, sizeof(diff_opts_t));
+    opts->mode = DIFF_MODE_NORMAL;
+    opts->unified_context = 3;
     opts->out_path[0] = '\0';
     opts->left[0] = '\0';
     opts->right[0] = '\0';
@@ -68,7 +93,7 @@ static int parse_opts(diff_opts_t *opts) {
 
     files = 0;
     for (i = 0; i < argc; i++) {
-        if (!util_streq(argv[i], "-q") && !util_streq(argv[i], "-s") && !util_streq(argv[i], "-o") && !util_streq(argv[i], "-H") && !util_streq(argv[i], "-h") && !util_streq(argv[i], "/?")) {
+        if (!util_streq(argv[i], "-q") && !util_streq(argv[i], "-s") && !util_streq(argv[i], "-u") && !util_streq(argv[i], "-U") && !util_streq(argv[i], "-o") && !util_streq(argv[i], "-H") && !util_streq(argv[i], "-h") && !util_streq(argv[i], "/?")) {
             int j;
             int bad;
             bad = 0;
@@ -90,6 +115,26 @@ static int parse_opts(diff_opts_t *opts) {
             opts->brief = 1;
         } else if (util_streq(argv[i], "-s")) {
             opts->report_identical = 1;
+        } else if (util_streq(argv[i], "-u")) {
+            opts->mode = DIFF_MODE_UNIFIED;
+            opts->unified_context = 3;
+        } else if (util_streq(argv[i], "-U")) {
+            int n;
+
+            if (i + 1 >= argc) {
+                printf("diff: option -U requires a number\n");
+                return 0;
+            }
+            if (!parse_uint(argv[++i], &n)) {
+                printf("diff: invalid context length '%s'\n", argv[i]);
+                return 0;
+            }
+            opts->mode = DIFF_MODE_UNIFIED;
+            if (n > MAX_UNIFIED_CONTEXT) {
+                printf("diff: context too large (max %d)\n", MAX_UNIFIED_CONTEXT);
+                return 0;
+            }
+            opts->unified_context = (unsigned char)n;
         } else if (util_streq(argv[i], "-o")) {
             if (i + 1 >= argc) {
                 printf("diff: option -o requires a file name\n");
@@ -166,7 +211,7 @@ void main(void) {
     g_ctx.out = out_fp;
 
     err[0] = '\0';
-    if (!diff_compare_files(&g_ctx, opts.left, opts.right, (unsigned char)(opts.brief ? 0 : 1), &has_diff, err, sizeof(err))) {
+    if (!diff_compare_files(&g_ctx, opts.left, opts.right, (unsigned char)(opts.brief ? 0 : 1), opts.mode, opts.unified_context, &has_diff, err, sizeof(err))) {
         if (out_fp != stdout) {
             fclose(out_fp);
         }

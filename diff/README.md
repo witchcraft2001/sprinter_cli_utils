@@ -11,6 +11,8 @@ Current status: Level 1 MVP (initial).
 - Options:
   - `-q` brief output (report only if files differ)
   - `-s` report when files are identical
+  - `-u` unified diff output (default context 3)
+  - `-U N` unified diff output with `N` context lines
   - `-o FILE` write diff output to file (DSS-friendly replacement for shell redirection)
   - `-h`, `-H`, `/?` help
 - Exit codes:
@@ -57,6 +59,8 @@ Examples:
 diff a.txt b.txt
 diff -q a.txt b.txt
 diff -s a.txt b.txt
+diff -u a.txt b.txt
+diff -U 5 a.txt b.txt
 diff -o result.dif a.txt b.txt
 ```
 

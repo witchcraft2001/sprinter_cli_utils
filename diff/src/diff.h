@@ -14,6 +14,10 @@
 
 #define MAX_LINE 255
 #define LOOKAHEAD_LINES 8
+#define MAX_UNIFIED_CONTEXT 16
+
+#define DIFF_MODE_NORMAL 0
+#define DIFF_MODE_UNIFIED 1
 
 #ifndef DIFF_VERSION
 #define DIFF_VERSION "0.1.00000000"
@@ -33,6 +37,8 @@ typedef struct {
     unsigned char brief;
     unsigned char report_identical;
     unsigned char show_help;
+    unsigned char mode;
+    unsigned char unified_context;
     char out_path[MAX_PATH_TEXT];
     char left[MAX_PATH_TEXT];
     char right[MAX_PATH_TEXT];
@@ -51,6 +57,8 @@ typedef struct {
     FILE *out;
     line_stream_t left_stream;
     line_stream_t right_stream;
+    char unified_hist[MAX_UNIFIED_CONTEXT][MAX_LINE + 1];
+    unsigned int unified_hist_line_no[MAX_UNIFIED_CONTEXT];
 } diff_ctx_t;
 
 void ctx_init(diff_ctx_t *ctx);
@@ -67,6 +75,6 @@ int stream_fill(line_stream_t *s, int need, char *err, int err_sz, const char *p
 void stream_consume(line_stream_t *s, int n);
 unsigned int stream_empty_anchor(const line_stream_t *s);
 
-int diff_compare_files(diff_ctx_t *ctx, const char *left, const char *right, unsigned char emit, int *has_diff, char *err, int err_sz);
+int diff_compare_files(diff_ctx_t *ctx, const char *left, const char *right, unsigned char emit, unsigned char mode, unsigned char unified_context, int *has_diff, char *err, int err_sz);
 
 #endif
