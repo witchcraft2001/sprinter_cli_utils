@@ -13,5 +13,5 @@ build/
 *.mem
 *.noi
 *.sym
-make/specs.md
+specs.md
 temp/*

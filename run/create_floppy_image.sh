@@ -29,6 +29,7 @@ rm -rf "$dist_root"
 
 utilities=(
   make
+  diff
 )
 
 MAKE_BUILD_LOG="${MAKE_BUILD_LOG:-0}"
@@ -48,6 +49,14 @@ build_utility() {
       make -C "$repo_root/make/examples/tools/mkstamp"
       make -C "$repo_root/make/examples/tools/mkfail"
       make -C "$repo_root/make/examples/tools/mkdel"
+      ;;
+    diff)
+      make -C "$repo_root/diff" clean
+      if [ -n "$MAKE_BUILD_VERSION" ]; then
+        make -C "$repo_root/diff" LOG="$MAKE_BUILD_LOG" VERSION="$MAKE_BUILD_VERSION"
+      else
+        make -C "$repo_root/diff" LOG="$MAKE_BUILD_LOG"
+      fi
       ;;
     *)
       echo "Error: unknown utility: $utility" >&2
@@ -117,12 +126,50 @@ copy_make_payload() {
   cp "$repo_root/make/examples/tools/mkdel/mkdel.exe" "$zip_root/EXAMPLES/04_SOLID/MKDEL.EXE"
 }
 
+copy_diff_payload() {
+  local utility_root="::/DIFF"
+  local zip_root="$dist_root/DIFF"
+
+  mkdir_img_dir "$utility_root"
+  mkdir_img_dir "$utility_root/EXAMPLES"
+  mkdir_img_dir "$utility_root/EXAMPLES/01_IDENT"
+  mkdir_img_dir "$utility_root/EXAMPLES/02_INDEL"
+  mkdir_img_dir "$utility_root/EXAMPLES/03_CHANG"
+
+  mkdir -p "$zip_root/EXAMPLES/01_IDENT"
+  mkdir -p "$zip_root/EXAMPLES/02_INDEL"
+  mkdir -p "$zip_root/EXAMPLES/03_CHANG"
+
+  mcopy -i "$image_path" -o "$repo_root/diff/diff.exe" "$utility_root/DIFF.EXE"
+  mcopy -i "$image_path" -o "$repo_root/diff/readme.txt" "$utility_root/README.TXT"
+  mcopy -i "$image_path" -o "$repo_root/diff/examples/README.md" "$utility_root/EXAMPLES/README.MD"
+  mcopy -i "$image_path" -o "$repo_root/diff/examples/01_identical/A.TXT" "$utility_root/EXAMPLES/01_IDENT/A.TXT"
+  mcopy -i "$image_path" -o "$repo_root/diff/examples/01_identical/B.TXT" "$utility_root/EXAMPLES/01_IDENT/B.TXT"
+  mcopy -i "$image_path" -o "$repo_root/diff/examples/02_insert_delete/A.TXT" "$utility_root/EXAMPLES/02_INDEL/A.TXT"
+  mcopy -i "$image_path" -o "$repo_root/diff/examples/02_insert_delete/B.TXT" "$utility_root/EXAMPLES/02_INDEL/B.TXT"
+  mcopy -i "$image_path" -o "$repo_root/diff/examples/03_change_blocks/A.TXT" "$utility_root/EXAMPLES/03_CHANG/A.TXT"
+  mcopy -i "$image_path" -o "$repo_root/diff/examples/03_change_blocks/B.TXT" "$utility_root/EXAMPLES/03_CHANG/B.TXT"
+
+  cp "$repo_root/diff/diff.exe" "$zip_root/DIFF.EXE"
+  cp "$repo_root/diff/readme.txt" "$zip_root/README.TXT"
+  cp "$repo_root/diff/examples/README.md" "$zip_root/EXAMPLES/README.MD"
+  cp "$repo_root/diff/examples/01_identical/A.TXT" "$zip_root/EXAMPLES/01_IDENT/A.TXT"
+  cp "$repo_root/diff/examples/01_identical/B.TXT" "$zip_root/EXAMPLES/01_IDENT/B.TXT"
+  cp "$repo_root/diff/examples/02_insert_delete/A.TXT" "$zip_root/EXAMPLES/02_INDEL/A.TXT"
+  cp "$repo_root/diff/examples/02_insert_delete/B.TXT" "$zip_root/EXAMPLES/02_INDEL/B.TXT"
+  cp "$repo_root/diff/examples/03_change_blocks/A.TXT" "$zip_root/EXAMPLES/03_CHANG/A.TXT"
+  cp "$repo_root/diff/examples/03_change_blocks/B.TXT" "$zip_root/EXAMPLES/03_CHANG/B.TXT"
+}
+
 copy_utility_payload() {
   local utility="$1"
 
   case "$utility" in
     make)
       copy_make_payload
+      ;;
+    diff)
+      copy_diff_payload
       ;;
     *)
       echo "Error: unknown utility: $utility" >&2
