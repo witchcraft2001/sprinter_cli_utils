@@ -327,7 +327,11 @@ void main(void) {
         if (out_fp != stdout) {
             fclose(out_fp);
         }
-        printf("diff: %s\n", err);
+        if (util_streq(err, "Aborted")) {
+            printf("Aborted\n");
+        } else {
+            printf("diff: %s\n", err);
+        }
         dss_exit(2);
         return;
     }

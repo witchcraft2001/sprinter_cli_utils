@@ -1,32 +1,62 @@
 #include "diff.h"
 
-static int read_one_line(FILE *fp, char *buf, int buf_sz, int *too_long) {
-    int len;
-
-    *too_long = 0;
-    if (fgets(buf, buf_sz, fp) == (char *)0) {
-        return 0;
+static int stream_getc(line_stream_t *s) {
+    if (s->has_pushback) {
+        s->has_pushback = 0;
+        return (int)s->pushback_ch;
     }
 
-    len = (int)strlen(buf);
-    if (len > 0 && buf[len - 1] != '\n' && buf[len - 1] != '\r') {
-        if (!feof(fp)) {
-            char drop[96];
-            *too_long = 1;
-            while (fgets(drop, sizeof(drop), fp) != (char *)0) {
-                int dlen;
-                dlen = (int)strlen(drop);
-                if (dlen > 0 && (drop[dlen - 1] == '\n' || drop[dlen - 1] == '\r')) {
-                    break;
-                }
-            }
+    if (s->read_pos >= s->read_len) {
+        s->read_len = fread(s->read_buf, 1u, sizeof(s->read_buf), s->fp);
+        s->read_pos = 0;
+        if (s->read_len == 0) {
+            return EOF;
         }
     }
 
-    while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) {
-        buf[len - 1] = '\0';
-        len--;
+    return (int)(unsigned char)s->read_buf[s->read_pos++];
+}
+
+static void stream_ungetc(line_stream_t *s, int ch) {
+    if (ch == EOF) {
+        return;
     }
+    s->has_pushback = 1;
+    s->pushback_ch = (unsigned char)ch;
+}
+
+static int read_one_line(line_stream_t *s, char *buf, int buf_sz, int *too_long) {
+    int ch;
+    int len;
+
+    *too_long = 0;
+
+    len = 0;
+    while ((ch = stream_getc(s)) != EOF) {
+        if (ch == '\r') {
+            int next;
+
+            next = stream_getc(s);
+            if (next != '\n' && next != EOF) {
+                stream_ungetc(s, next);
+            }
+            break;
+        }
+        if (ch == '\n') {
+            break;
+        }
+        if (len < buf_sz - 1) {
+            buf[len++] = (char)ch;
+        } else {
+            *too_long = 1;
+        }
+    }
+
+    if (ch == EOF && len == 0) {
+        return 0;
+    }
+
+    buf[len] = '\0';
 
     return 1;
 }
@@ -42,7 +72,7 @@ int stream_fill(line_stream_t *s, int need, char *err, int err_sz, const char *p
         int too_long;
         int got;
 
-        got = read_one_line(s->fp, s->lines[s->count], sizeof(s->lines[s->count]), &too_long);
+        got = read_one_line(s, s->lines[s->count], sizeof(s->lines[s->count]), &too_long);
         if (!got) {
             s->eof = 1;
             break;

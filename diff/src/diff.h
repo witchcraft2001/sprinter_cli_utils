@@ -15,6 +15,7 @@
 #define MAX_LINE 255
 #define LOOKAHEAD_LINES 8
 #define MAX_UNIFIED_CONTEXT 16
+#define STREAM_READBUF 1024
 
 #define DIFF_MODE_NORMAL 0
 #define DIFF_MODE_UNIFIED 1
@@ -52,8 +53,13 @@ typedef struct {
     FILE *fp;
     unsigned char eof;
     unsigned char count;
+    unsigned char has_pushback;
+    unsigned char pushback_ch;
+    unsigned int read_pos;
+    unsigned int read_len;
     unsigned int next_line_no;
     unsigned int line_no[LOOKAHEAD_LINES];
+    char read_buf[STREAM_READBUF];
     char lines[LOOKAHEAD_LINES][MAX_LINE + 1];
 } line_stream_t;
 

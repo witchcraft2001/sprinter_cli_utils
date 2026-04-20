@@ -34,6 +34,7 @@ MVP uses streaming comparison and supports large files (including `64KB+` text f
 
 - max line length: `255` characters
 - lookahead window for resync: `8` lines
+- supported line endings: `LF`, `CRLF`, `CR`
 
 If a line is longer than the limit, the tool exits with code `2` and a clear error message.
 

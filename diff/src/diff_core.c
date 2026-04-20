@@ -4,6 +4,39 @@ static int is_hspace(char c) {
     return c == ' ' || c == '\t';
 }
 
+static int diff_poll_abort(void) {
+    dss_key_t key;
+    unsigned char scan;
+
+    if (!dss_kbhit()) {
+        return 0;
+    }
+
+    dss_waitkey_ex(&key);
+
+    if (key.ascii == 27u) {
+        return 1;
+    }
+
+    scan = (unsigned char)(key.scan & 0x7Fu);
+
+    if ((key.modifiers & DSS_KEYMOD_CTRL) != 0u) {
+        if (key.ascii == 'X' || key.ascii == 'x' ||
+            key.ascii == 'Z' || key.ascii == 'z' ||
+            key.ascii == 24u || key.ascii == 26u) {
+            return 1;
+        }
+
+        /* DSS KEYINTER returns Ctrl+letter with ascii=0 and the letter
+           encoded only in the position code. Z=0x2A, X=0x2B. */
+        if (scan == 0x2Au || scan == 0x2Bu) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 static char fold_case_char(char c, unsigned char ignore_case) {
     if (!ignore_case) {
         return c;
@@ -46,16 +79,18 @@ static int lines_equal_mode(const char *a,
     }
 
     if (ignore_space_change) {
-        while (*a != '\0' || *b != '\0') {
-            while (*a != '\0' && is_hspace(*a)) {
-                a++;
+        while (*a != '\0' && *b != '\0') {
+            if (is_hspace(*a) && is_hspace(*b)) {
+                while (*a != '\0' && is_hspace(*a)) {
+                    a++;
+                }
+                while (*b != '\0' && is_hspace(*b)) {
+                    b++;
+                }
+                continue;
             }
-            while (*b != '\0' && is_hspace(*b)) {
-                b++;
-            }
-
-            if (*a == '\0' || *b == '\0') {
-                break;
+            if (is_hspace(*a) || is_hspace(*b)) {
+                return 0;
             }
             if (fold_case_char(*a, ignore_case) != fold_case_char(*b, ignore_case)) {
                 return 0;
@@ -432,8 +467,14 @@ int diff_compare_files(diff_ctx_t *ctx,
     stream_init(b, fb);
     hist_count = 0;
     header_printed = 0;
-
     while (1) {
+        if (diff_poll_abort()) {
+            fclose(fa);
+            fclose(fb);
+            util_set_error(err, err_sz, "", "Aborted");
+            return 0;
+        }
+
         if (!stream_fill(a, 1, err, err_sz, left) || !stream_fill(b, 1, err, err_sz, right)) {
             fclose(fa);
             fclose(fb);
@@ -462,6 +503,13 @@ int diff_compare_files(diff_ctx_t *ctx,
         *has_diff = 1;
         if (!emit) {
             break;
+        }
+
+        if (diff_poll_abort()) {
+            fclose(fa);
+            fclose(fb);
+            util_set_error(err, err_sz, "", "Aborted");
+            return 0;
         }
 
         if (!stream_fill(a, LOOKAHEAD_LINES, err, err_sz, left) || !stream_fill(b, LOOKAHEAD_LINES, err, err_sz, right)) {
