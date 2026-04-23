@@ -114,49 +114,6 @@ int fs_probe_path(const char *path, u8 *attr, int *is_dir, u8 *err_code) {
     return 1;
 }
 
-static int fs_find_first_child(const char *dir_path,
-                               char *child_path,
-                               int child_path_sz,
-                               u8 *child_attr,
-                               int *found_child,
-                               char *err,
-                               int err_sz) {
-    char pattern[MAX_PATH_TEXT];
-    ffblk entry;
-
-    *found_child = 0;
-
-    if (!util_join_path(pattern, sizeof(pattern), dir_path, "*.*")) {
-        sprintf(err, "deltree: %s: path too long", dir_path);
-        (void)err_sz;
-        return 0;
-    }
-    if (findfirst(pattern, &entry, 0x3F) != 0) {
-        return 1;
-    }
-
-    do {
-        if (util_is_dot_entry(entry.ff_name)) {
-            continue;
-        }
-        if ((entry.attr & FA_LABEL) != 0u) {
-            continue;
-        }
-
-        if (!util_join_path(child_path, child_path_sz, dir_path, entry.ff_name)) {
-            sprintf(err, "deltree: %s\\%s: path too long", dir_path, entry.ff_name);
-            (void)err_sz;
-            return 0;
-        }
-
-        *child_attr = entry.attr;
-        *found_child = 1;
-        return 1;
-    } while (findnext(&entry) == 0);
-
-    return 1;
-}
-
 static int fs_delete_file_with_attrs(const char *path, u8 known_attr, char *err, int err_sz) {
     u8 rc;
 
@@ -280,9 +237,14 @@ static int fs_try_rmdir_via_parent(const char *path, u8 *rc_out) {
 static int fs_delete_dir_with_attrs(const char *path,
                                     u8 known_attr,
                                     unsigned char has_known,
+                                    u8 *remove_err,
                                     char *err,
                                     int err_sz) {
     u8 rc;
+
+    if (remove_err != (u8 *)0) {
+        *remove_err = 0u;
+    }
 
     if (!fs_clear_special_attrs(path, known_attr, has_known, err, err_sz)) {
         return 0;
@@ -294,6 +256,14 @@ static int fs_delete_dir_with_attrs(const char *path,
     rc = rmdir(path);
     if (rc != 0) {
         u8 rc2;
+
+        if (remove_err != (u8 *)0) {
+            *remove_err = rc;
+        }
+
+        if (rc == 11u) {
+            return 0;
+        }
 
         if (fs_try_rmdir_via_parent(path, &rc2)) {
             return 1;
@@ -352,50 +322,20 @@ int fs_delete_tree(const char *root, char *err, int err_sz) {
         }
 
         if (!found_child) {
-            char verify_child_path[MAX_PATH_TEXT];
-            u8 verify_child_attr;
-            int verify_child_found;
+            u8 remove_err;
 
-            if (!fs_find_first_child(frame->path,
-                                     verify_child_path,
-                                     sizeof(verify_child_path),
-                                     &verify_child_attr,
-                                     &verify_child_found,
-                                     err,
-                                     err_sz)) {
-                return 0;
-            }
-
-            if (verify_child_found) {
-                if ((verify_child_attr & FA_DIREC) != 0u) {
-                    if (top + 1 >= MAX_STACK_DEPTH) {
-                        sprintf(err, "deltree: %s: directory depth limit exceeded", verify_child_path);
-                        (void)err_sz;
-                        return 0;
-                    }
-                    top++;
-                    if (!util_copy_path(stack[top].path, sizeof(stack[top].path), verify_child_path)) {
-                        sprintf(err, "deltree: %s: path too long", verify_child_path);
-                        (void)err_sz;
-                        return 0;
-                    }
-                    stack[top].dir_attr = verify_child_attr;
-                    stack[top].has_dir_attr = 1u;
-                    stack[top].scan_started = 0u;
-                    continue;
-                }
-
-                if (!fs_delete_file_with_attrs(verify_child_path, verify_child_attr, err, err_sz)) {
-                    return 0;
-                }
-                continue;
-            }
-
+            remove_err = 0u;
             if (!fs_delete_dir_with_attrs(frame->path,
                                           frame->dir_attr,
                                           frame->has_dir_attr,
+                                          &remove_err,
                                           err,
                                           err_sz)) {
+                if (remove_err == 11u) {
+                    /* Directory changed while scanning; restart scan only in this case. */
+                    frame->scan_started = 0u;
+                    continue;
+                }
                 return 0;
             }
             top--;
