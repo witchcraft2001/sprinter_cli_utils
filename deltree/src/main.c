@@ -5,9 +5,10 @@
 static void print_usage(void) {
     printf("Sprinter DELTREE %s\r\n", DELTREE_VERSION);
     printf("Author: Dmitry Mikhalchenkov\r\n");
-    printf("Usage: deltree [/Y|-Y] PATH [PATH ...]\r\n");
+    printf("Usage: deltree [/Y|-Y] [/Q|-Q] PATH [PATH ...]\r\n");
     printf("Options:\r\n");
     printf("  /Y,-Y     delete without confirmation\r\n");
+    printf("  /Q,-Q     quiet mode (disable per-directory progress)\r\n");
     printf("  -H,-h,/?  show this help\r\n");
 }
 
@@ -31,6 +32,10 @@ static int parse_opts(deltree_opts_t *opts) {
         }
         if (util_strieq(argv[i], "/Y") || util_strieq(argv[i], "-Y")) {
             opts->assume_yes = 1;
+            continue;
+        }
+        if (util_strieq(argv[i], "/Q") || util_strieq(argv[i], "-Q")) {
+            opts->quiet = 1;
             continue;
         }
 
@@ -454,6 +459,8 @@ void main(void) {
         dss_exit(0);
         return;
     }
+
+    fs_set_progress_enabled((unsigned char)(opts.quiet ? 0 : 1));
 
     any_runtime_error = 0;
     exit_code = 0;

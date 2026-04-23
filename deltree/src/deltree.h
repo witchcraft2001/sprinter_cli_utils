@@ -32,6 +32,7 @@
 typedef struct {
     unsigned char show_help;
     unsigned char assume_yes;
+    unsigned char quiet;
     unsigned char path_count;
     char paths[MAX_TARGETS][MAX_PATH_TEXT];
 } deltree_opts_t;
@@ -57,5 +58,6 @@ int input_poll_abort(void);
 int fs_probe_path(const char *path, u8 *attr, int *is_dir, u8 *err_code);
 int fs_delete_tree(const char *root, char *err, int err_sz);
 int fs_delete_file_known_attr(const char *path, u8 attr, char *err, int err_sz);
+void fs_set_progress_enabled(unsigned char enabled);
 
 #endif

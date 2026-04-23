@@ -5,7 +5,6 @@ typedef struct {
     u8 dir_attr;
     unsigned char has_dir_attr;
     unsigned char scan_started;
-    unsigned char scan_pattern_index;
     ffblk scan_entry;
 } deltree_frame_t;
 
@@ -13,6 +12,7 @@ const char *g_fs_attr_path;
 u8 g_fs_attr_mode;
 u8 g_fs_attr_value;
 u8 g_fs_attr_result;
+static unsigned char g_fs_progress_enabled = 1u;
 
 u8 fs_dss_attrib_call(void) __naked {
     __asm
@@ -121,50 +121,38 @@ static int fs_find_first_child(const char *dir_path,
                                int *found_child,
                                char *err,
                                int err_sz) {
-    static const char *patterns[] = {
-        "*.*",
-        "*",
-        "*.",
-        "????????.???"
-    };
     char pattern[MAX_PATH_TEXT];
     ffblk entry;
-    int rc;
-    int pi;
 
     *found_child = 0;
 
-    for (pi = 0; pi < (int)(sizeof(patterns) / sizeof(patterns[0])); pi++) {
-        if (!util_join_path(pattern, sizeof(pattern), dir_path, patterns[pi])) {
-            sprintf(err, "deltree: %s: path too long", dir_path);
+    if (!util_join_path(pattern, sizeof(pattern), dir_path, "*.*")) {
+        sprintf(err, "deltree: %s: path too long", dir_path);
+        (void)err_sz;
+        return 0;
+    }
+    if (findfirst(pattern, &entry, 0x3F) != 0) {
+        return 1;
+    }
+
+    do {
+        if (util_is_dot_entry(entry.ff_name)) {
+            continue;
+        }
+        if ((entry.attr & FA_LABEL) != 0u) {
+            continue;
+        }
+
+        if (!util_join_path(child_path, child_path_sz, dir_path, entry.ff_name)) {
+            sprintf(err, "deltree: %s\\%s: path too long", dir_path, entry.ff_name);
             (void)err_sz;
             return 0;
         }
 
-        rc = findfirst(pattern, &entry, 0x3F);
-        if (rc != 0) {
-            continue;
-        }
-
-        do {
-            if (util_is_dot_entry(entry.ff_name)) {
-                continue;
-            }
-            if ((entry.attr & FA_LABEL) != 0u) {
-                continue;
-            }
-
-            if (!util_join_path(child_path, child_path_sz, dir_path, entry.ff_name)) {
-                sprintf(err, "deltree: %s\\%s: path too long", dir_path, entry.ff_name);
-                (void)err_sz;
-                return 0;
-            }
-
-            *child_attr = entry.attr;
-            *found_child = 1;
-            return 1;
-        } while (findnext(&entry) == 0);
-    }
+        *child_attr = entry.attr;
+        *found_child = 1;
+        return 1;
+    } while (findnext(&entry) == 0);
 
     return 1;
 }
@@ -190,6 +178,10 @@ int fs_delete_file_known_attr(const char *path, u8 attr, char *err, int err_sz) 
     return fs_delete_file_with_attrs(path, attr, err, err_sz);
 }
 
+void fs_set_progress_enabled(unsigned char enabled) {
+    g_fs_progress_enabled = enabled;
+}
+
 static int fs_next_child_iter(deltree_frame_t *frame,
                               char *child_path,
                               int child_path_sz,
@@ -197,67 +189,51 @@ static int fs_next_child_iter(deltree_frame_t *frame,
                               int *found_child,
                               char *err,
                               int err_sz) {
-    static const char *patterns[] = {
-        "*.*",
-        "*",
-        "*.",
-        "????????.???"
-    };
     char pattern[MAX_PATH_TEXT];
+    int have_entry;
 
     *found_child = 0;
 
-    while (frame->scan_pattern_index < (unsigned char)(sizeof(patterns) / sizeof(patterns[0]))) {
-        int have_entry;
-
-        have_entry = 0;
-        if (!frame->scan_started) {
-            if (!util_join_path(pattern,
-                                sizeof(pattern),
-                                frame->path,
-                                patterns[frame->scan_pattern_index])) {
-                sprintf(err, "deltree: %s: path too long", frame->path);
-                (void)err_sz;
-                return 0;
-            }
-            if (findfirst(pattern, &frame->scan_entry, 0x3F) != 0) {
-                frame->scan_pattern_index++;
-                continue;
-            }
-            frame->scan_started = 1u;
-            have_entry = 1;
+    have_entry = 0;
+    if (!frame->scan_started) {
+        if (!util_join_path(pattern, sizeof(pattern), frame->path, "*.*")) {
+            sprintf(err, "deltree: %s: path too long", frame->path);
+            (void)err_sz;
+            return 0;
         }
-
-        while (1) {
-            if (!have_entry) {
-                if (findnext(&frame->scan_entry) != 0) {
-                    frame->scan_started = 0u;
-                    frame->scan_pattern_index++;
-                    break;
-                }
-            }
-            have_entry = 0;
-
-            if (util_is_dot_entry(frame->scan_entry.ff_name)) {
-                continue;
-            }
-            if ((frame->scan_entry.attr & FA_LABEL) != 0u) {
-                continue;
-            }
-
-            if (!util_join_path(child_path, child_path_sz, frame->path, frame->scan_entry.ff_name)) {
-                sprintf(err, "deltree: %s\\%s: path too long", frame->path, frame->scan_entry.ff_name);
-                (void)err_sz;
-                return 0;
-            }
-
-            *child_attr = frame->scan_entry.attr;
-            *found_child = 1;
+        if (findfirst(pattern, &frame->scan_entry, 0x3F) != 0) {
             return 1;
         }
+        frame->scan_started = 1u;
+        have_entry = 1;
     }
 
-    return 1;
+    while (1) {
+        if (!have_entry) {
+            if (findnext(&frame->scan_entry) != 0) {
+                frame->scan_started = 0u;
+                return 1;
+            }
+        }
+        have_entry = 0;
+
+        if (util_is_dot_entry(frame->scan_entry.ff_name)) {
+            continue;
+        }
+        if ((frame->scan_entry.attr & FA_LABEL) != 0u) {
+            continue;
+        }
+
+        if (!util_join_path(child_path, child_path_sz, frame->path, frame->scan_entry.ff_name)) {
+            sprintf(err, "deltree: %s\\%s: path too long", frame->path, frame->scan_entry.ff_name);
+            (void)err_sz;
+            return 0;
+        }
+
+        *child_attr = frame->scan_entry.attr;
+        *found_child = 1;
+        return 1;
+    }
 }
 
 static int fs_try_rmdir_via_parent(const char *path, u8 *rc_out) {
@@ -304,65 +280,26 @@ static int fs_try_rmdir_via_parent(const char *path, u8 *rc_out) {
 static int fs_delete_dir_with_attrs(const char *path,
                                     u8 known_attr,
                                     unsigned char has_known,
-                                    char *left_child_path,
-                                    int left_child_path_sz,
-                                    u8 *left_child_attr,
-                                    int *left_child_found,
                                     char *err,
                                     int err_sz) {
     u8 rc;
-
-    *left_child_found = 0;
 
     if (!fs_clear_special_attrs(path, known_attr, has_known, err, err_sz)) {
         return 0;
     }
 
-    printf("removing directory: %s\r\n", path);
+    if (g_fs_progress_enabled) {
+        printf("removing directory: %s\r\n", path);
+    }
     rc = rmdir(path);
     if (rc != 0) {
         u8 rc2;
-        char child_path[MAX_PATH_TEXT];
-        u8 child_attr;
-        int found_child;
-        char scan_err[MAX_TEXT];
 
         if (fs_try_rmdir_via_parent(path, &rc2)) {
             return 1;
         }
 
-        scan_err[0] = '\0';
-        if (fs_find_first_child(path,
-                                child_path,
-                                sizeof(child_path),
-                                &child_attr,
-                                &found_child,
-                                scan_err,
-                                sizeof(scan_err))) {
-            if (found_child) {
-                if (!util_copy_path(left_child_path, left_child_path_sz, child_path)) {
-                    sprintf(err, "deltree: %s: path too long", child_path);
-                    (void)err_sz;
-                    return 0;
-                }
-                *left_child_attr = child_attr;
-                *left_child_found = 1;
-                return 2;
-            } else {
-                sprintf(err,
-                        "deltree: %s: cannot remove directory (err=%u; scan=empty)",
-                        path,
-                        (unsigned int)rc);
-            }
-        } else if (scan_err[0] != '\0') {
-            sprintf(err,
-                    "deltree: %s: cannot remove directory (err=%u; scan failed: %s)",
-                    path,
-                    (unsigned int)rc,
-                    scan_err);
-        } else {
-            sprintf(err, "deltree: %s: cannot remove directory (err=%u)", path, (unsigned int)rc);
-        }
+        sprintf(err, "deltree: %s: cannot remove directory (err=%u)", path, (unsigned int)rc);
         (void)err_sz;
         return 0;
     }
@@ -373,6 +310,7 @@ static int fs_delete_dir_with_attrs(const char *path,
 int fs_delete_tree(const char *root, char *err, int err_sz) {
     deltree_frame_t stack[MAX_STACK_DEPTH];
     int top;
+    unsigned char abort_poll_counter;
 
     if (!util_copy_path(stack[0].path, sizeof(stack[0].path), root)) {
         sprintf(err, "deltree: %s: path too long", root);
@@ -382,8 +320,8 @@ int fs_delete_tree(const char *root, char *err, int err_sz) {
     stack[0].dir_attr = 0u;
     stack[0].has_dir_attr = 0u;
     stack[0].scan_started = 0u;
-    stack[0].scan_pattern_index = 0u;
     top = 0;
+    abort_poll_counter = 0u;
 
     while (top >= 0) {
         deltree_frame_t *frame;
@@ -391,10 +329,14 @@ int fs_delete_tree(const char *root, char *err, int err_sz) {
         u8 child_attr;
         int found_child;
 
-        if (input_poll_abort()) {
-            sprintf(err, "deltree: Aborted");
-            (void)err_sz;
-            return 0;
+        abort_poll_counter++;
+        if (abort_poll_counter >= 8u) {
+            abort_poll_counter = 0u;
+            if (input_poll_abort()) {
+                sprintf(err, "deltree: Aborted");
+                (void)err_sz;
+                return 0;
+            }
         }
 
         frame = &stack[top];
@@ -410,54 +352,54 @@ int fs_delete_tree(const char *root, char *err, int err_sz) {
         }
 
         if (!found_child) {
-            int rm_rc;
-            char left_child_path[MAX_PATH_TEXT];
-            u8 left_child_attr;
-            int left_child_found;
+            char verify_child_path[MAX_PATH_TEXT];
+            u8 verify_child_attr;
+            int verify_child_found;
 
-            rm_rc = fs_delete_dir_with_attrs(frame->path,
-                                             frame->dir_attr,
-                                             frame->has_dir_attr,
-                                             left_child_path,
-                                             sizeof(left_child_path),
-                                             &left_child_attr,
-                                             &left_child_found,
-                                             err,
-                                             err_sz);
-            if (rm_rc == 1) {
-                top--;
-                continue;
+            if (!fs_find_first_child(frame->path,
+                                     verify_child_path,
+                                     sizeof(verify_child_path),
+                                     &verify_child_attr,
+                                     &verify_child_found,
+                                     err,
+                                     err_sz)) {
+                return 0;
             }
-            if (rm_rc == 2 && left_child_found) {
-                if ((left_child_attr & FA_DIREC) != 0u) {
+
+            if (verify_child_found) {
+                if ((verify_child_attr & FA_DIREC) != 0u) {
                     if (top + 1 >= MAX_STACK_DEPTH) {
-                        sprintf(err, "deltree: %s: directory depth limit exceeded", left_child_path);
+                        sprintf(err, "deltree: %s: directory depth limit exceeded", verify_child_path);
                         (void)err_sz;
                         return 0;
                     }
                     top++;
-                    if (!util_copy_path(stack[top].path, sizeof(stack[top].path), left_child_path)) {
-                        sprintf(err, "deltree: %s: path too long", left_child_path);
+                    if (!util_copy_path(stack[top].path, sizeof(stack[top].path), verify_child_path)) {
+                        sprintf(err, "deltree: %s: path too long", verify_child_path);
                         (void)err_sz;
                         return 0;
                     }
-                    stack[top].dir_attr = left_child_attr;
+                    stack[top].dir_attr = verify_child_attr;
                     stack[top].has_dir_attr = 1u;
                     stack[top].scan_started = 0u;
-                    stack[top].scan_pattern_index = 0u;
                     continue;
                 }
-                if (!fs_delete_file_with_attrs(left_child_path, left_child_attr, err, err_sz)) {
+
+                if (!fs_delete_file_with_attrs(verify_child_path, verify_child_attr, err, err_sz)) {
                     return 0;
                 }
                 continue;
             }
-            if (rm_rc == 0) {
+
+            if (!fs_delete_dir_with_attrs(frame->path,
+                                          frame->dir_attr,
+                                          frame->has_dir_attr,
+                                          err,
+                                          err_sz)) {
                 return 0;
             }
-            sprintf(err, "deltree: %s: cannot remove directory", frame->path);
-            (void)err_sz;
-            return 0;
+            top--;
+            continue;
         }
 
         if ((child_attr & FA_DIREC) != 0u) {
@@ -475,7 +417,6 @@ int fs_delete_tree(const char *root, char *err, int err_sz) {
             stack[top].dir_attr = child_attr;
             stack[top].has_dir_attr = 1u;
             stack[top].scan_started = 0u;
-            stack[top].scan_pattern_index = 0u;
             continue;
         }
 

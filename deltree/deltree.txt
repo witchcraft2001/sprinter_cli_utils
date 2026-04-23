@@ -4,11 +4,12 @@ DELTREE for Sprinter DSS
 Version: see DELTREE startup banner.
 
 Usage:
-  DELTREE [/Y|-Y] PATH [PATH ...]
+  DELTREE [/Y|-Y] [/Q|-Q] PATH [PATH ...]
 
 Behavior:
   - asks for confirmation before deletion
   - /Y and -Y disable confirmation prompt
+  - /Q and -Q disable per-directory progress log
   - can process multiple target paths in one command
   - on [y] recursively deletes directory targets with all subdirectories/files
   - can delete file targets
