@@ -1,0 +1,22 @@
+DELTREE for Sprinter DSS
+========================
+
+Version: see DELTREE startup banner.
+
+Usage:
+  DELTREE DIRECTORY
+
+Behavior in current stage:
+  - asks for confirmation before deletion
+  - on [y] recursively deletes DIRECTORY, all files and subdirectories
+  - before delete, clears Read-Only/Hidden/System attributes
+  - supports abort by ESC, Ctrl+X, Ctrl+Z
+
+Exit codes:
+  0  success or user answered No
+  1  runtime failure / canceled by abort key
+  2  command line usage error
+
+Notes:
+  - wildcard masks and /Y are planned for next stages
+  - root directory deletion is refused

@@ -30,6 +30,7 @@ rm -rf "$dist_root"
 utilities=(
   make
   diff
+  deltree
 )
 
 MAKE_BUILD_LOG="${MAKE_BUILD_LOG:-0}"
@@ -56,6 +57,14 @@ build_utility() {
         make -C "$repo_root/diff" LOG="$MAKE_BUILD_LOG" VERSION="$MAKE_BUILD_VERSION"
       else
         make -C "$repo_root/diff" LOG="$MAKE_BUILD_LOG"
+      fi
+      ;;
+    deltree)
+      make -C "$repo_root/deltree" clean
+      if [ -n "$MAKE_BUILD_VERSION" ]; then
+        make -C "$repo_root/deltree" LOG="$MAKE_BUILD_LOG" VERSION="$MAKE_BUILD_VERSION"
+      else
+        make -C "$repo_root/deltree" LOG="$MAKE_BUILD_LOG"
       fi
       ;;
     *)
@@ -191,6 +200,27 @@ copy_diff_payload() {
   cp "$repo_root/diff/examples/06_ignore_all_space/CHECK.BAT" "$zip_root/EXAMPLES/06_IGNWS/CHECK.BAT"
 }
 
+copy_deltree_payload() {
+  local utility_root="::/DELTREE"
+  local zip_root="$dist_root/DELTREE"
+
+  mkdir_img_dir "$utility_root"
+  mkdir_img_dir "$utility_root/EXAMPLES"
+  mkdir_img_dir "$utility_root/EXAMPLES/01_BASIC"
+
+  mkdir -p "$zip_root/EXAMPLES/01_BASIC"
+
+  mcopy -i "$image_path" -o "$repo_root/deltree/deltree.exe" "$utility_root/DELTREE.EXE"
+  mcopy -i "$image_path" -o "$repo_root/deltree/deltree.txt" "$utility_root/DELTREE.TXT"
+  mcopy -i "$image_path" -o "$repo_root/deltree/examples/README.md" "$utility_root/EXAMPLES/README.MD"
+  mcopy -i "$image_path" -o "$repo_root/deltree/examples/01_basic/CHECK.BAT" "$utility_root/EXAMPLES/01_BASIC/CHECK.BAT"
+
+  cp "$repo_root/deltree/deltree.exe" "$zip_root/DELTREE.EXE"
+  cp "$repo_root/deltree/deltree.txt" "$zip_root/DELTREE.TXT"
+  cp "$repo_root/deltree/examples/README.md" "$zip_root/EXAMPLES/README.MD"
+  cp "$repo_root/deltree/examples/01_basic/CHECK.BAT" "$zip_root/EXAMPLES/01_BASIC/CHECK.BAT"
+}
+
 copy_utility_payload() {
   local utility="$1"
 
@@ -200,6 +230,9 @@ copy_utility_payload() {
       ;;
     diff)
       copy_diff_payload
+      ;;
+    deltree)
+      copy_deltree_payload
       ;;
     *)
       echo "Error: unknown utility: $utility" >&2
