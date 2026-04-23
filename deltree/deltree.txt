@@ -4,10 +4,12 @@ DELTREE for Sprinter DSS
 Version: see DELTREE startup banner.
 
 Usage:
-  DELTREE DIRECTORY
+  DELTREE [/Y] DIRECTORY [DIRECTORY ...]
 
 Behavior in current stage:
   - asks for confirmation before deletion
+  - /Y disables confirmation prompt
+  - can process multiple target directories in one command
   - on [y] recursively deletes DIRECTORY, all files and subdirectories
   - before delete, clears Read-Only/Hidden/System attributes
   - supports abort by ESC, Ctrl+X, Ctrl+Z
@@ -18,5 +20,5 @@ Exit codes:
   2  command line usage error
 
 Notes:
-  - wildcard masks and /Y are planned for next stages
+  - wildcard masks are planned for next stage
   - root directory deletion is refused

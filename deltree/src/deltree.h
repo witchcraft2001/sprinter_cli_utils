@@ -12,6 +12,7 @@
 #define MAX_TEXT 256
 #define MAX_PATH_TEXT 192
 #define MAX_STACK_DEPTH 20
+#define MAX_TARGETS 12
 
 #ifndef DELTREE_VERSION
 #define DELTREE_VERSION "0.1.00000000"
@@ -29,7 +30,9 @@
 
 typedef struct {
     unsigned char show_help;
-    char path[MAX_PATH_TEXT];
+    unsigned char assume_yes;
+    unsigned char path_count;
+    char paths[MAX_TARGETS][MAX_PATH_TEXT];
 } deltree_opts_t;
 
 void util_rtrim(char *s);
