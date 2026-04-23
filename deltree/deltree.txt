@@ -4,21 +4,24 @@ DELTREE for Sprinter DSS
 Version: see DELTREE startup banner.
 
 Usage:
-  DELTREE [/Y] DIRECTORY [DIRECTORY ...]
+  DELTREE [/Y|-Y] PATH [PATH ...]
 
-Behavior in current stage:
+Behavior:
   - asks for confirmation before deletion
-  - /Y disables confirmation prompt
-  - can process multiple target directories in one command
-  - on [y] recursively deletes DIRECTORY, all files and subdirectories
+  - /Y and -Y disable confirmation prompt
+  - can process multiple target paths in one command
+  - on [y] recursively deletes directory targets with all subdirectories/files
+  - can delete file targets
   - before delete, clears Read-Only/Hidden/System attributes
+  - supports wildcard masks (*, ?) in last path component
+    examples: A:\TEMP\*.BAK, A:\JUNK\??.TMP, A:\TEMP\*
   - supports abort by ESC, Ctrl+X, Ctrl+Z
 
 Exit codes:
-  0  success or user answered No
+  0  success, no matches for wildcard, or user answered No
   1  runtime failure / canceled by abort key
   2  command line usage error
 
 Notes:
-  - wildcard masks are planned for next stage
+  - wildcard is allowed only in last path component
   - root directory deletion is refused

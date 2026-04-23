@@ -62,3 +62,33 @@ int input_confirm_delete(const char *path, int *aborted) {
         }
     }
 }
+
+int input_confirm_file(const char *path, int *aborted) {
+    dss_key_t key;
+
+    *aborted = 0;
+    printf("%s: Delete file? [y/N] ", path);
+
+    while (1) {
+        dss_waitkey_ex(&key);
+
+        if (key_is_abort(&key)) {
+            printf("\r\n");
+            *aborted = 1;
+            return 0;
+        }
+
+        if (key.ascii == 'y' || key.ascii == 'Y') {
+            printf("y\r\n");
+            return 1;
+        }
+        if (key.ascii == 'n' || key.ascii == 'N') {
+            printf("n\r\n");
+            return 0;
+        }
+        if (key.ascii == 13u || key.ascii == 10u) {
+            printf("\r\n");
+            return 0;
+        }
+    }
+}

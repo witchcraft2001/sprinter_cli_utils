@@ -180,6 +180,10 @@ static int fs_delete_file_with_attrs(const char *path, u8 known_attr, char *err,
     return 1;
 }
 
+int fs_delete_file_known_attr(const char *path, u8 attr, char *err, int err_sz) {
+    return fs_delete_file_with_attrs(path, attr, err, err_sz);
+}
+
 static int fs_try_rmdir_via_parent(const char *path, u8 *rc_out) {
     char cwd[MAX_PATH_TEXT];
     char parent[MAX_PATH_TEXT];
@@ -228,7 +232,7 @@ static int fs_delete_dir_with_attrs(const char *path, u8 known_attr, unsigned ch
         return 0;
     }
 
-    printf("deltree: removing directory: %s\r\n", path);
+    printf("removing directory: %s\r\n", path);
     rc = rmdir(path);
     if (rc != 0) {
         u8 rc2;
@@ -296,7 +300,7 @@ int fs_delete_tree(const char *root, char *err, int err_sz) {
         int found_child;
 
         if (input_poll_abort()) {
-            sprintf(err, "deltree: operation canceled by user");
+            sprintf(err, "deltree: Aborted");
             (void)err_sz;
             return 0;
         }
