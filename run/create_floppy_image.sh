@@ -216,13 +216,17 @@ copy_deltree_payload() {
   mcopy -i "$image_path" -o "$repo_root/deltree/deltree.txt" "$utility_root/DELTREE.TXT"
   mcopy -i "$image_path" -o "$repo_root/deltree/examples/README.md" "$utility_root/EXAMPLES/README.MD"
   mcopy -i "$image_path" -o "$repo_root/deltree/examples/01_basic/CHECK.BAT" "$utility_root/EXAMPLES/01_BASIC/CHECK.BAT"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/01_BASIC/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/deltree/examples/02_wildcards/CHECK.BAT" "$utility_root/EXAMPLES/02_WILDS/CHECK.BAT"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/02_WILDS/MKSTAMP.EXE"
 
   cp "$repo_root/deltree/deltree.exe" "$zip_root/DELTREE.EXE"
   cp "$repo_root/deltree/deltree.txt" "$zip_root/DELTREE.TXT"
   cp "$repo_root/deltree/examples/README.md" "$zip_root/EXAMPLES/README.MD"
   cp "$repo_root/deltree/examples/01_basic/CHECK.BAT" "$zip_root/EXAMPLES/01_BASIC/CHECK.BAT"
+  cp "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$zip_root/EXAMPLES/01_BASIC/MKSTAMP.EXE"
   cp "$repo_root/deltree/examples/02_wildcards/CHECK.BAT" "$zip_root/EXAMPLES/02_WILDS/CHECK.BAT"
+  cp "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$zip_root/EXAMPLES/02_WILDS/MKSTAMP.EXE"
 }
 
 copy_utility_payload() {

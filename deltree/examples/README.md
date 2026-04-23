@@ -1,6 +1,7 @@
 # DELTREE examples for Sprinter DSS
 
 Current package includes manual scenarios for recursive removal and wildcard masks.
+Both scenarios use `MKSTAMP.EXE` to create files (no shell redirection required).
 
 ## 01_BASIC
 
