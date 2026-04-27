@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sprinter/dss.h>
 
 static char *next_arg(char **pp) {
@@ -26,6 +27,20 @@ static char *next_arg(char **pp) {
     return start;
 }
 
+static int is_exe_name(const char *s) {
+    unsigned int n;
+
+    n = (unsigned int)strlen(s);
+    if (n < 5) {
+        return 0;
+    }
+    s += n - 4;
+    return (s[0] == '.' &&
+            (s[1] == 'e' || s[1] == 'E') &&
+            (s[2] == 'x' || s[2] == 'X') &&
+            (s[3] == 'e' || s[3] == 'E'));
+}
+
 void main(void) {
     char *cmd;
     char *arg;
@@ -33,6 +48,9 @@ void main(void) {
 
     cmd = dss_cmdline();
     arg = next_arg(&cmd);
+    if (arg != (char *)0 && is_exe_name(arg)) {
+        arg = next_arg(&cmd);
+    }
 
     if (arg == (char *)0) {
         code = 1;

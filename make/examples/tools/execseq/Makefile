@@ -1,4 +1,4 @@
-APP      = mkstamp
+APP      = execseq
 SRCS     = main.c
 SDK_DIR  ?= ../../../../../sdcc-sprinter-sdk/
 CRT0_PAGE2 ?= 1

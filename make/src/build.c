@@ -97,6 +97,12 @@ int build_goal(make_ctx_t *ctx, int idx, const make_opts_t *opts) {
                 return rc;
             }
         }
+
+        if (!t->phony && !opts->dry_run && !fs_get_mtime(t->name, &t_date, &t_time)) {
+            printf("make: recipe did not create target '%s'\n", t->name);
+            t->building = 0;
+            return 1;
+        }
     }
 
     MAKE_LOG("make: done target '%s'\n", t->name);

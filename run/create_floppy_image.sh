@@ -51,9 +51,11 @@ build_utility() {
       make -C "$repo_root/make/examples/tools/mkstamp" clean
       make -C "$repo_root/make/examples/tools/mkfail" clean
       make -C "$repo_root/make/examples/tools/mkdel" clean
+      make -C "$repo_root/make/examples/tools/execseq" clean
       make -C "$repo_root/make/examples/tools/mkstamp"
       make -C "$repo_root/make/examples/tools/mkfail"
       make -C "$repo_root/make/examples/tools/mkdel"
+      make -C "$repo_root/make/examples/tools/execseq"
       ;;
     diff)
       make -C "$repo_root/diff" clean
@@ -130,19 +132,25 @@ copy_make_payload() {
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/TOOLS/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkfail/mkfail.exe" "$utility_root/TOOLS/MKFAIL.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkdel/mkdel.exe" "$utility_root/TOOLS/MKDEL.EXE"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/tools/execseq/execseq.exe" "$utility_root/TOOLS/EXECSEQ.EXE"
   cp "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$zip_root/TOOLS/MKSTAMP.EXE"
   cp "$repo_root/make/examples/tools/mkfail/mkfail.exe" "$zip_root/TOOLS/MKFAIL.EXE"
   cp "$repo_root/make/examples/tools/mkdel/mkdel.exe" "$zip_root/TOOLS/MKDEL.EXE"
+  cp "$repo_root/make/examples/tools/execseq/execseq.exe" "$zip_root/TOOLS/EXECSEQ.EXE"
 
   # Duplicate helper tools into each example directory so examples can run in place.
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/01_BASIC/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/02_PREFX/MKSTAMP.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$utility_root/EXAMPLES/03_MULTI/MKSTAMP.EXE"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkdel/mkdel.exe" "$utility_root/EXAMPLES/03_MULTI/MKDEL.EXE"
+  mcopy -i "$image_path" -o "$repo_root/make/examples/tools/execseq/execseq.exe" "$utility_root/EXAMPLES/03_MULTI/EXECSEQ.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkfail/mkfail.exe" "$utility_root/EXAMPLES/02_PREFX/MKFAIL.EXE"
   mcopy -i "$image_path" -o "$repo_root/make/examples/tools/mkdel/mkdel.exe" "$utility_root/EXAMPLES/04_SOLID/MKDEL.EXE"
   cp "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$zip_root/EXAMPLES/01_BASIC/MKSTAMP.EXE"
   cp "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$zip_root/EXAMPLES/02_PREFX/MKSTAMP.EXE"
   cp "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$zip_root/EXAMPLES/03_MULTI/MKSTAMP.EXE"
+  cp "$repo_root/make/examples/tools/mkdel/mkdel.exe" "$zip_root/EXAMPLES/03_MULTI/MKDEL.EXE"
+  cp "$repo_root/make/examples/tools/execseq/execseq.exe" "$zip_root/EXAMPLES/03_MULTI/EXECSEQ.EXE"
   cp "$repo_root/make/examples/tools/mkfail/mkfail.exe" "$zip_root/EXAMPLES/02_PREFX/MKFAIL.EXE"
   cp "$repo_root/make/examples/tools/mkdel/mkdel.exe" "$zip_root/EXAMPLES/04_SOLID/MKDEL.EXE"
 }

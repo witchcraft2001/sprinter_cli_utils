@@ -17,7 +17,7 @@
 #define MAX_TEXT 256
 #define MAX_CMDLINE 256
 #define MAX_ARGV 16
-#define TEXT_POOL_SIZE 8192
+#define TEXT_POOL_SIZE 4096
 
 #ifndef MAKE_VERSION
 #define MAKE_VERSION "0.1.00000000"

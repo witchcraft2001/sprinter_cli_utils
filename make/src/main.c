@@ -123,9 +123,7 @@ void main(void) {
     int show_help;
     int goal;
     int rc;
-    char cwd[MAX_TEXT];
-    int cwd_rc;
-    u8 disk;
+    int load_rc;
 
     printf("Sprinter make %s\n", MAKE_VERSION);
     printf("Author: Dmitry Mikhalchenkov\n");
@@ -151,29 +149,32 @@ void main(void) {
         return;
     }
 
-    cwd[0] = '\0';
-    cwd_rc = (int)dss_curdir(cwd);
-    disk = dss_getdisk();
-    if (cwd_rc == 0) {
-        MAKE_LOG("make: cwd='%s' disk=%c:\n", cwd, (char)('A' + disk));
-    } else {
-        MAKE_LOG("make: cwd read failed rc=%d disk=%c:\n", cwd_rc, (char)('A' + disk));
-    }
-
     MAKE_LOG("make: loading file '%s'\n", opts.makefile);
 
     MAKE_STAGE("main: load makefile");
-    if (!parser_load_file(&g_ctx, opts.makefile)) {
-        if (util_streq(opts.makefile, "Makefile")) {
-            if (!parser_load_file(&g_ctx, "makefile")) {
-                if (!parser_load_file(&g_ctx, "MAKEFILE")) {
-                    printf("make: cannot open makefile\n");
-                    dss_exit(2);
-                    return;
-                }
+    load_rc = parser_load_file(&g_ctx, opts.makefile);
+    if (load_rc <= 0) {
+        if (load_rc < 0 && util_streq(opts.makefile, "Makefile")) {
+            load_rc = parser_load_file(&g_ctx, "makefile");
+            if (load_rc < 0) {
+                load_rc = parser_load_file(&g_ctx, "MAKEFILE");
+            }
+            if (load_rc < 0) {
+                printf("make: cannot open makefile\n");
+                dss_exit(2);
+                return;
+            }
+            if (load_rc == 0) {
+                printf("make: cannot parse makefile\n");
+                dss_exit(2);
+                return;
             }
         } else {
-            printf("make: cannot open '%s'\n", opts.makefile);
+            if (load_rc < 0) {
+                printf("make: cannot open '%s'\n", opts.makefile);
+            } else {
+                printf("make: cannot parse '%s'\n", opts.makefile);
+            }
             dss_exit(2);
             return;
         }

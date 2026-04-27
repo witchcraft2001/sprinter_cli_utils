@@ -3,7 +3,7 @@
 static char g_exec_line[MAX_LINE];
 static char g_exec_show[MAX_LINE];
 static char g_exec_run[MAX_LINE];
-static u8 g_exec_err;
+static char g_exec_cwd[256];
 
 static int is_valid_cmd_start(unsigned char c) {
     if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
@@ -39,6 +39,8 @@ int exec_recipe_line(make_ctx_t *ctx, const char *line, const make_opts_t *opts)
     int silent;
     int ignore_err;
     int rc;
+    u8 saved_disk;
+    u8 have_cwd;
 
     if (!vars_expand(ctx, line, g_exec_line, sizeof(g_exec_line))) {
         printf("make: expansion overflow in command\n");
@@ -105,12 +107,20 @@ int exec_recipe_line(make_ctx_t *ctx, const char *line, const make_opts_t *opts)
         return 0;
     }
 
-    g_exec_err = 0;
-    rc = (int)dss_exec_ex(g_exec_run, &g_exec_err);
-    MAKE_LOG("make: recipe exit=%d err=%u\n", rc, (unsigned int)g_exec_err);
+    saved_disk = dss_getdisk();
+    have_cwd = (dss_curdir(g_exec_cwd) == 0);
+
+    rc = (int)dss_exec(g_exec_run);
+
+    dss_setdisk(saved_disk);
+    if (have_cwd) {
+        dss_chdir(g_exec_cwd);
+    }
+
+    MAKE_LOG("make: recipe exit=%d\n", rc);
 
     if (rc < 0) {
-        printf("make: cannot exec (err=%d)\n", (int)g_exec_err);
+        printf("make: cannot exec\n");
         printf("%s\n", g_exec_show);
         if (ignore_err) {
             return 0;
@@ -119,11 +129,11 @@ int exec_recipe_line(make_ctx_t *ctx, const char *line, const make_opts_t *opts)
     }
 
     if (rc != 0) {
-        printf("make: recipe failed (%d)\n", rc);
-        printf("%s\n", g_exec_show);
         if (ignore_err) {
             return 0;
         }
+        printf("make: recipe failed (%d)\n", rc);
+        printf("%s\n", g_exec_show);
         return rc;
     }
 

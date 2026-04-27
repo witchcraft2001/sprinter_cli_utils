@@ -1,4 +1,5 @@
 STAMPER = MKSTAMP.EXE
+DELETER = MKDEL.EXE
 
 .PHONY: all clean touch_a touch_b rebuild_sources
 
@@ -40,4 +41,12 @@ rebuild_sources:
 	$(STAMPER) c.src source_c_rebuild
 
 clean:
+	-$(DELETER) a.src
+	-$(DELETER) b.src
+	-$(DELETER) c.src
+	-$(DELETER) a.obj
+	-$(DELETER) b.obj
+	-$(DELETER) c.obj
+	-$(DELETER) app.bin
+	-$(DELETER) report.txt
 	$(STAMPER) clean.log cleaned
