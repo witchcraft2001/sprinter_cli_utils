@@ -332,13 +332,13 @@ static void history_push(char hist[MAX_UNIFIED_CONTEXT][MAX_LINE + 1],
 }
 
 int diff_probe_binary(const char *path, int *is_binary, char *err, int err_sz) {
-    FILE *fp;
+    i16 fd;
     unsigned char buf[128];
     unsigned int total;
 
     *is_binary = 0;
-    fp = fopen(path, "r");
-    if (fp == (FILE *)0) {
+    fd = dss_open(path, O_RDONLY);
+    if (fd < 0) {
         util_set_error(err, err_sz, "cannot open ", path);
         return 0;
     }
@@ -354,42 +354,47 @@ int diff_probe_binary(const char *path, int *is_binary, char *err, int err_sz) {
             want = 1024u - total;
         }
 
-        got = fread(buf, 1u, want, fp);
+        got = (unsigned int)dss_read((u8)fd, buf, want);
         if (got == 0u) {
             break;
+        }
+        if (got == 0xFFFFu) {
+            dss_close((u8)fd);
+            util_set_error(err, err_sz, "cannot read ", path);
+            return 0;
         }
 
         for (i = 0; i < got; i++) {
             if (buf[i] == 0u) {
                 *is_binary = 1;
-                fclose(fp);
+                dss_close((u8)fd);
                 return 1;
             }
         }
         total += got;
     }
 
-    fclose(fp);
+    dss_close((u8)fd);
     return 1;
 }
 
 int diff_compare_binary_files(const char *left, const char *right, int *same, char *err, int err_sz) {
-    FILE *fa;
-    FILE *fb;
+    i16 fa;
+    i16 fb;
     unsigned char ba[256];
     unsigned char bb[256];
 
     *same = 0;
 
-    fa = fopen(left, "r");
-    if (fa == (FILE *)0) {
+    fa = dss_open(left, O_RDONLY);
+    if (fa < 0) {
         util_set_error(err, err_sz, "cannot open ", left);
         return 0;
     }
 
-    fb = fopen(right, "r");
-    if (fb == (FILE *)0) {
-        fclose(fa);
+    fb = dss_open(right, O_RDONLY);
+    if (fb < 0) {
+        dss_close((u8)fa);
         util_set_error(err, err_sz, "cannot open ", right);
         return 0;
     }
@@ -399,29 +404,41 @@ int diff_compare_binary_files(const char *left, const char *right, int *same, ch
         unsigned int rb;
         unsigned int i;
 
-        ra = fread(ba, 1u, sizeof(ba), fa);
-        rb = fread(bb, 1u, sizeof(bb), fb);
+        ra = (unsigned int)dss_read((u8)fa, ba, sizeof(ba));
+        if (ra == 0xFFFFu) {
+            dss_close((u8)fa);
+            dss_close((u8)fb);
+            util_set_error(err, err_sz, "cannot read ", left);
+            return 0;
+        }
+        rb = (unsigned int)dss_read((u8)fb, bb, sizeof(bb));
+        if (rb == 0xFFFFu) {
+            dss_close((u8)fa);
+            dss_close((u8)fb);
+            util_set_error(err, err_sz, "cannot read ", right);
+            return 0;
+        }
 
         if (ra != rb) {
             *same = 0;
-            fclose(fa);
-            fclose(fb);
+            dss_close((u8)fa);
+            dss_close((u8)fb);
             return 1;
         }
 
         for (i = 0; i < ra; i++) {
             if (ba[i] != bb[i]) {
                 *same = 0;
-                fclose(fa);
-                fclose(fb);
+                dss_close((u8)fa);
+                dss_close((u8)fb);
                 return 1;
             }
         }
 
         if (ra == 0u) {
             *same = 1;
-            fclose(fa);
-            fclose(fb);
+            dss_close((u8)fa);
+            dss_close((u8)fb);
             return 1;
         }
     }

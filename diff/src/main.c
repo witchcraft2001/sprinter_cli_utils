@@ -239,6 +239,31 @@ void main(void) {
     }
     g_ctx.out = out_fp;
 
+    if ((opts.brief || opts.report_identical) &&
+        !opts.ignore_case &&
+        !opts.ignore_space_change &&
+        !opts.ignore_all_space) {
+        if (!diff_compare_binary_files(opts.left, opts.right, &same_exact, err, sizeof(err))) {
+            if (out_fp != stdout) {
+                fclose(out_fp);
+            }
+            printf("diff: %s\n", err);
+            dss_exit(2);
+            return;
+        }
+
+        if (same_exact) {
+            if (out_fp != stdout) {
+                fclose(out_fp);
+            }
+            if (opts.report_identical) {
+                printf("Files %s and %s are identical\n", opts.left, opts.right);
+            }
+            dss_exit(0);
+            return;
+        }
+    }
+
     if (!opts.force_text) {
         if (!diff_probe_binary(opts.left, &left_binary, err, sizeof(err))) {
             if (out_fp != stdout) {

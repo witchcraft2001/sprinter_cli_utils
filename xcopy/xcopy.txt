@@ -1,0 +1,22 @@
+XCOPY for Sprinter DSS
+
+Usage:
+  XCOPY SOURCE DEST [/Y] [/-Y] [/E] [/H] [/K] [/V]
+
+Switches:
+  /Y    overwrite existing files without prompt
+  /-Y   force overwrite prompt
+  /E    copy empty directories
+  /H    include hidden/system files and directories
+  /K    preserve file attributes
+  /V    verbose progress while scanning directories
+
+Memory:
+  The utility allocates a paged I/O buffer in Sprinter RAM.
+  Default maximum: 4 pages x 16 KB = 64 KB.
+  Files are read into the paged buffer until it is full,
+  then written to destination in large chunks.
+  Press Esc, Ctrl+X, or Ctrl+Z to abort a long copy.
+
+Example:
+  XCOPY B:\DATA C:\BACKUP /Y /E /H /K /V

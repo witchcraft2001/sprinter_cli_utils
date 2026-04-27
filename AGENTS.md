@@ -9,7 +9,7 @@
 - You may consult the following local sibling repositories/directories for answers, platform details, and implementation ideas:
   - `/Users/dmitry/dev/zx/sprinter/sdcc-sprinter-sdk`
   - `/Users/dmitry/dev/zx/sprinter/sprinter_bios`
-  - `/Users/dmitry/dev/zx/sprinter/sprinter_dss`
+  - `/Users/dmitry/dev/zx/sprinter/Estex-DSS/`
   - `/Users/dmitry/dev/zx/sprinter/sprinter_ai_doc/manual`
   - `/Users/dmitry/dev/zx/sprinter/sources/tasm_071/TASM`
   - `/Users/dmitry/dev/zx/sprinter/sources/fformat/src/fformat_v113`

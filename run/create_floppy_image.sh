@@ -31,6 +31,7 @@ utilities=(
   make
   diff
   deltree
+  xcopy
 )
 
 MAKE_BUILD_LOG="${MAKE_BUILD_LOG:-0}"
@@ -47,6 +48,9 @@ build_utility() {
       else
         make -C "$repo_root/make" LOG="$MAKE_BUILD_LOG"
       fi
+      make -C "$repo_root/make/examples/tools/mkstamp" clean
+      make -C "$repo_root/make/examples/tools/mkfail" clean
+      make -C "$repo_root/make/examples/tools/mkdel" clean
       make -C "$repo_root/make/examples/tools/mkstamp"
       make -C "$repo_root/make/examples/tools/mkfail"
       make -C "$repo_root/make/examples/tools/mkdel"
@@ -65,6 +69,14 @@ build_utility() {
         make -C "$repo_root/deltree" LOG="$MAKE_BUILD_LOG" VERSION="$MAKE_BUILD_VERSION"
       else
         make -C "$repo_root/deltree" LOG="$MAKE_BUILD_LOG"
+      fi
+      ;;
+    xcopy)
+      make -C "$repo_root/xcopy" clean
+      if [ -n "$MAKE_BUILD_VERSION" ]; then
+        make -C "$repo_root/xcopy" LOG="$MAKE_BUILD_LOG" VERSION="$MAKE_BUILD_VERSION"
+      else
+        make -C "$repo_root/xcopy" LOG="$MAKE_BUILD_LOG"
       fi
       ;;
     *)
@@ -229,6 +241,47 @@ copy_deltree_payload() {
   cp "$repo_root/make/examples/tools/mkstamp/mkstamp.exe" "$zip_root/EXAMPLES/02_WILDS/MKSTAMP.EXE"
 }
 
+copy_xcopy_payload() {
+  local utility_root="::/XCOPY"
+  local zip_root="$dist_root/XCOPY"
+
+  mkdir_img_dir "$utility_root"
+  mkdir_img_dir "$utility_root/EXAMPLES"
+  mkdir_img_dir "$utility_root/EXAMPLES/01_VERFY"
+  mkdir_img_dir "$utility_root/EXAMPLES/01_VERFY/SRC"
+  mkdir_img_dir "$utility_root/EXAMPLES/01_VERFY/SRC/ROOT"
+  mkdir_img_dir "$utility_root/EXAMPLES/01_VERFY/SRC/ROOT/SUB"
+  mkdir_img_dir "$utility_root/EXAMPLES/01_VERFY/SRC/EMPTY"
+
+  mkdir -p "$zip_root/EXAMPLES/01_VERFY/SRC/ROOT/SUB"
+  mkdir -p "$zip_root/EXAMPLES/01_VERFY/SRC/EMPTY"
+
+  mcopy -i "$image_path" -o "$repo_root/xcopy/xcopy.exe" "$utility_root/XCOPY.EXE"
+  mcopy -i "$image_path" -o "$repo_root/xcopy/xcopy.txt" "$utility_root/XCOPY.TXT"
+  mcopy -i "$image_path" -o "$repo_root/xcopy/examples/README.md" "$utility_root/EXAMPLES/README.MD"
+  mcopy -i "$image_path" -o "$repo_root/xcopy/examples/01_verfy/CHECK.BAT" "$utility_root/EXAMPLES/01_VERFY/CHECK.BAT"
+  mcopy -i "$image_path" -o "$repo_root/xcopy/examples/01_verfy/SRC/ROOT.TXT" "$utility_root/EXAMPLES/01_VERFY/SRC/ROOT.TXT"
+  mcopy -i "$image_path" -o "$repo_root/xcopy/examples/01_verfy/SRC/ROOT/SUB/FILE1.TXT" "$utility_root/EXAMPLES/01_VERFY/SRC/ROOT/SUB/FILE1.TXT"
+  mcopy -i "$image_path" -o "$repo_root/xcopy/examples/01_verfy/SRC/ROOT/SUB/FILE2.TXT" "$utility_root/EXAMPLES/01_VERFY/SRC/ROOT/SUB/FILE2.TXT"
+  mcopy -i "$image_path" -o "$repo_root/xcopy/examples/01_verfy/SRC/ROOT/SUB/SECRET.TXT" "$utility_root/EXAMPLES/01_VERFY/SRC/ROOT/SUB/SECRET.TXT"
+
+  cp "$repo_root/xcopy/xcopy.exe" "$zip_root/XCOPY.EXE"
+  cp "$repo_root/xcopy/xcopy.txt" "$zip_root/XCOPY.TXT"
+  cp "$repo_root/xcopy/examples/README.md" "$zip_root/EXAMPLES/README.MD"
+  cp "$repo_root/xcopy/examples/01_verfy/CHECK.BAT" "$zip_root/EXAMPLES/01_VERFY/CHECK.BAT"
+  cp "$repo_root/xcopy/examples/01_verfy/SRC/ROOT.TXT" "$zip_root/EXAMPLES/01_VERFY/SRC/ROOT.TXT"
+  cp "$repo_root/xcopy/examples/01_verfy/SRC/ROOT/SUB/FILE1.TXT" "$zip_root/EXAMPLES/01_VERFY/SRC/ROOT/SUB/FILE1.TXT"
+  cp "$repo_root/xcopy/examples/01_verfy/SRC/ROOT/SUB/FILE2.TXT" "$zip_root/EXAMPLES/01_VERFY/SRC/ROOT/SUB/FILE2.TXT"
+  cp "$repo_root/xcopy/examples/01_verfy/SRC/ROOT/SUB/SECRET.TXT" "$zip_root/EXAMPLES/01_VERFY/SRC/ROOT/SUB/SECRET.TXT"
+
+  mcopy -i "$image_path" -o "$repo_root/xcopy/xcopy.exe" "$utility_root/EXAMPLES/01_VERFY/XCOPY.EXE"
+  mcopy -i "$image_path" -o "$repo_root/diff/diff.exe" "$utility_root/EXAMPLES/01_VERFY/DIFF.EXE"
+  mcopy -i "$image_path" -o "$repo_root/deltree/deltree.exe" "$utility_root/EXAMPLES/01_VERFY/DELTREE.EXE"
+  cp "$repo_root/xcopy/xcopy.exe" "$zip_root/EXAMPLES/01_VERFY/XCOPY.EXE"
+  cp "$repo_root/diff/diff.exe" "$zip_root/EXAMPLES/01_VERFY/DIFF.EXE"
+  cp "$repo_root/deltree/deltree.exe" "$zip_root/EXAMPLES/01_VERFY/DELTREE.EXE"
+}
+
 copy_utility_payload() {
   local utility="$1"
 
@@ -241,6 +294,9 @@ copy_utility_payload() {
       ;;
     deltree)
       copy_deltree_payload
+      ;;
+    xcopy)
+      copy_xcopy_payload
       ;;
     *)
       echo "Error: unknown utility: $utility" >&2

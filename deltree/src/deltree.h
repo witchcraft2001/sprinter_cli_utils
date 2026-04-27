@@ -14,6 +14,8 @@
 #define MAX_STACK_DEPTH 20
 #define MAX_TARGETS 12
 #define MAX_WILDCARD_SKIPS 24
+#define MAX_DIR_ENTRIES 64
+#define ENTRY_NAME_MAX 32
 
 #ifndef DELTREE_VERSION
 #define DELTREE_VERSION "0.1.00000000"
@@ -57,6 +59,7 @@ int input_poll_abort(void);
 
 int fs_probe_path(const char *path, u8 *attr, int *is_dir, u8 *err_code);
 int fs_delete_tree(const char *root, char *err, int err_sz);
+int fs_delete_tree_known_attr(const char *root, u8 attr, char *err, int err_sz);
 int fs_delete_file_known_attr(const char *path, u8 attr, char *err, int err_sz);
 void fs_set_progress_enabled(unsigned char enabled);
 

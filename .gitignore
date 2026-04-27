@@ -1,5 +1,6 @@
 .DS_Store
 references/*
+run/create_floppy_image.local.sh
 
 # Build artifacts
 build/

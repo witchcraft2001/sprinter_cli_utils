@@ -227,13 +227,28 @@ static int delete_dir_target(const char *path,
                              int *aborted,
                              char *err,
                              int err_sz) {
+    u8 attr;
+    u8 err_code;
+    int is_dir;
+
     if (!assume_yes) {
         if (!input_confirm_delete(path, aborted)) {
             return 1;
         }
     }
 
-    if (!fs_delete_tree(path, err, err_sz)) {
+    if (!fs_probe_path(path, &attr, &is_dir, &err_code)) {
+        sprintf(err, "deltree: %s: path not found", path);
+        (void)err_sz;
+        return 0;
+    }
+    if (!is_dir) {
+        sprintf(err, "deltree: %s: not a directory", path);
+        (void)err_sz;
+        return 0;
+    }
+
+    if (!fs_delete_tree_known_attr(path, attr, err, err_sz)) {
         return 0;
     }
 
@@ -267,6 +282,9 @@ static int process_plain_target(const char *path,
     }
 
     if (!fs_probe_path(path, &attr, &is_dir, &err_code)) {
+        if (assume_yes) {
+            return 0;
+        }
         printf("deltree: %s: path not found\r\n", path);
         *runtime_error = 1;
         return 0;
@@ -382,7 +400,15 @@ static int process_wildcard_target(const char *spec,
                 continue;
             }
 
-            if (!delete_dir_target(match_path, assume_yes, &ask_aborted, err, sizeof(err))) {
+            if (!assume_yes && !input_confirm_delete(match_path, &ask_aborted)) {
+                if (ask_aborted) {
+                    *aborted = 1;
+                    return 0;
+                }
+                continue;
+            }
+
+            if (!fs_delete_tree_known_attr(match_path, match_attr, err, sizeof(err))) {
                 if (err[0] != '\0') {
                     mark_runtime_error_from_text(err, runtime_error, aborted);
                     if (*aborted) {
@@ -402,9 +428,6 @@ static int process_wildcard_target(const char *spec,
                     *runtime_error = 1;
                     return 0;
                 }
-            } else if (ask_aborted) {
-                *aborted = 1;
-                return 0;
             }
             continue;
         }

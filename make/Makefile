@@ -6,7 +6,14 @@ VERSION  ?= 0.1.$(shell date +%Y%m%d)
 LOG      ?= 0
 STAGELOG ?= $(LOG)
 DIAG     ?= 0
+DATA_LOC ?= 0x8400
 
 include $(SDK_DIR)examples/common.mk
 
-SDCC_FLAGS += -DMAKE_VERSION='"$(VERSION)"' -DMAKE_LOG_ENABLE=$(LOG) -DMAKE_STAGE_LOG_ENABLE=$(STAGELOG) -DMAKE_DIAG_ENABLE=$(DIAG)
+APP_CPPFLAGS += -DMAKE_VERSION='"$(VERSION)"' -DMAKE_LOG_ENABLE=$(LOG) -DMAKE_STAGE_LOG_ENABLE=$(STAGELOG) -DMAKE_DIAG_ENABLE=$(DIAG)
+
+.PHONY: check-layout
+all: check-layout
+
+check-layout: $(APP).exe
+	$(PYTHON) ../run/check_sdcc_layout.py $(BUILD)/$(APP).map $(STACK)
