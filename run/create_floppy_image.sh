@@ -93,6 +93,16 @@ mkdir_img_dir() {
   mmd -i "$image_path" "$path" 2>/dev/null || true
 }
 
+copy_root_docs() {
+  mkdir -p "$dist_root"
+
+  mcopy -i "$image_path" -o "$repo_root/readme.md" "::/README.MD"
+  mcopy -i "$image_path" -o "$repo_root/LICENSE.md" "::/LICENSE.MD"
+
+  cp "$repo_root/readme.md" "$dist_root/README.MD"
+  cp "$repo_root/LICENSE.md" "$dist_root/LICENSE.MD"
+}
+
 copy_make_payload() {
   local utility_root="::/MAKE"
   local zip_root="$dist_root/MAKE"
@@ -320,6 +330,8 @@ done
 
 echo "Creating FAT12 floppy image..."
 mformat -C -i "$image_path" -f 1440 ::
+
+copy_root_docs
 
 for utility in "${utilities[@]}"; do
   copy_utility_payload "$utility"

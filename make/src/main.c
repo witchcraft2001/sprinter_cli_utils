@@ -155,29 +155,16 @@ void main(void) {
     load_rc = parser_load_file(&g_ctx, opts.makefile);
     if (load_rc <= 0) {
         if (load_rc < 0 && util_streq(opts.makefile, "Makefile")) {
-            load_rc = parser_load_file(&g_ctx, "makefile");
-            if (load_rc < 0) {
-                load_rc = parser_load_file(&g_ctx, "MAKEFILE");
-            }
-            if (load_rc < 0) {
-                printf("make: cannot open makefile\n");
-                dss_exit(2);
-                return;
-            }
-            if (load_rc == 0) {
-                printf("make: cannot parse makefile\n");
-                dss_exit(2);
-                return;
-            }
+            printf("make: cannot open makefile\n");
         } else {
             if (load_rc < 0) {
                 printf("make: cannot open '%s'\n", opts.makefile);
             } else {
                 printf("make: cannot parse '%s'\n", opts.makefile);
             }
-            dss_exit(2);
-            return;
         }
+        dss_exit(2);
+        return;
     }
     MAKE_STAGE("main: makefile loaded");
 

@@ -1,5 +1,7 @@
 # diff examples
 
+Author: Dmitry Mikhalchenkov, Sprinter Team
+
 ## 01_identical
 
 Two equal files for exit code `0` and `-s` checks.

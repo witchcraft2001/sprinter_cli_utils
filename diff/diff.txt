@@ -1,5 +1,7 @@
 Sprinter diff for Estex DSS
 
+Author: Dmitry Mikhalchenkov, Sprinter Team
+
 Status
 - Level 1 MVP (initial)
 

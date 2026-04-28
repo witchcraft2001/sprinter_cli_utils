@@ -1,5 +1,7 @@
 # make for Sprinter DSS
 
+Author: Dmitry Mikhalchenkov, Sprinter Team
+
 Compact `make` implementation for Estex DSS, written in C with SDCC Sprinter SDK.
 
 Current stable status: Level 1 MVP.
@@ -48,11 +50,11 @@ make SDK_DIR=/absolute/path/to/sdcc-sprinter-sdk/
 make [-n] [-f FILE] [target]
 ```
 
-Default makefile lookup order:
+Default makefile name: `Makefile`.
 
-1. `Makefile`
-2. `makefile`
-3. `MAKEFILE`
+On Sprinter DSS file names are case-insensitive, so `Makefile`, `makefile` and
+`MAKEFILE` refer to the same file. Use `-f FILE` to select a different makefile
+name.
 
 ## PATH and utility placement on DSS
 

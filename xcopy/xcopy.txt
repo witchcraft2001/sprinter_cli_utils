@@ -1,5 +1,7 @@
 XCOPY for Sprinter DSS
 
+Author: Dmitry Mikhalchenkov, Sprinter Team
+
 Usage:
   XCOPY SOURCE DEST [/Y] [/-Y] [/E] [/H] [/K] [/V]
 

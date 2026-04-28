@@ -1,5 +1,7 @@
 # xcopy for Sprinter DSS
 
+Author: Dmitry Mikhalchenkov, Sprinter Team
+
 Compact `xcopy` implementation for Estex DSS, written in C with SDCC Sprinter SDK.
 
 Implemented switches:

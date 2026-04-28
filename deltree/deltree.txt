@@ -1,6 +1,8 @@
 DELTREE for Sprinter DSS
 ========================
 
+Author: Dmitry Mikhalchenkov, Sprinter Team
+
 Version: see DELTREE startup banner.
 
 Usage:

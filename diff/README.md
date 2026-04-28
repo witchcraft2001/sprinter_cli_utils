@@ -1,5 +1,7 @@
 # diff for Sprinter DSS
 
+Author: Dmitry Mikhalchenkov, Sprinter Team
+
 Compact `diff` implementation for Estex DSS, written in C with SDCC Sprinter SDK.
 
 Current status: Level 1 MVP (initial).

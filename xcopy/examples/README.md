@@ -1,5 +1,7 @@
 # xcopy examples
 
+Author: Dmitry Mikhalchenkov, Sprinter Team
+
 ## 01_verfy
 
 Verification scenario for copying a prepared tree from `B:` to `C:`.

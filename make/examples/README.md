@@ -1,5 +1,7 @@
 # DSS Runtime Examples
 
+Author: Dmitry Mikhalchenkov, Sprinter Team
+
 This directory contains practical examples for `make.exe` on Sprinter DSS.
 
 ## Layout
