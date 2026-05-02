@@ -17,23 +17,22 @@ u8 g_xcopy_attr_result;
 static copy_frame_t g_copy_stack[MAX_STACK_DEPTH];
 static dss_find_t g_scan;
 static dss_find_t g_probe;
-static copy_entry_t g_dir_entries[XCOPY_MAX_DIR_ENTRIES];
-static copy_entry_t g_wild_entries[XCOPY_MAX_DIR_ENTRIES];
+static copy_entry_t g_entries[XCOPY_MAX_DIR_ENTRIES];
 static char g_tree_current_src[MAX_PATH_TEXT];
 static char g_tree_current_dst[MAX_PATH_TEXT];
 static char g_tree_pattern[MAX_PATH_TEXT];
-static char g_tree_entry_name[MAX_PATH_TEXT];
+static char g_tree_entry_name[XCOPY_ENTRY_NAME_MAX];
 static char g_tree_child_src[MAX_PATH_TEXT];
 static char g_tree_child_dst[MAX_PATH_TEXT];
 static char g_wild_pattern[MAX_PATH_TEXT];
-static char g_wild_entry_name[MAX_PATH_TEXT];
+static char g_wild_entry_name[XCOPY_ENTRY_NAME_MAX];
 static char g_wild_child_src[MAX_PATH_TEXT];
 static char g_wild_child_dst[MAX_PATH_TEXT];
 static char g_ensure_work[MAX_PATH_TEXT];
 static char g_parent_path[MAX_PATH_TEXT];
-static char g_single_base[MAX_PATH_TEXT];
+static char g_single_base[XCOPY_ENTRY_NAME_MAX];
 static char g_run_src_parent[MAX_PATH_TEXT];
-static char g_run_src_mask[MAX_PATH_TEXT];
+static char g_run_src_mask[XCOPY_ENTRY_NAME_MAX];
 static char g_run_dst_path[MAX_PATH_TEXT];
 
 u8 xcopy_dss_attrib_call(void) __naked {
@@ -84,6 +83,16 @@ int fs_setattr(const char *path, u8 attr, u8 *err_code) {
 }
 
 int fs_probe_path(const char *path, u8 *attr, int *is_dir) {
+    if (util_is_drive_root(path)) {
+        if (attr != (u8 *)0) {
+            *attr = FA_DIREC;
+        }
+        if (is_dir != (int *)0) {
+            *is_dir = 1;
+        }
+        return 1;
+    }
+
     if (dss_ffirst(path, &g_probe, 0x3Fu) != 0) {
         return 0;
     }
@@ -266,6 +275,104 @@ static int fs_remove_existing_file(const char *path, char *err, int err_sz) {
     return 1;
 }
 
+static int fs_path_drive(const char *path) {
+    if (((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) && path[1] == ':') {
+        return toupper((unsigned char)path[0]);
+    }
+    return 0;
+}
+
+static int fs_paths_have_different_drives(const char *left, const char *right) {
+    int left_drive;
+    int right_drive;
+
+    left_drive = fs_path_drive(left);
+    right_drive = fs_path_drive(right);
+    return left_drive != 0 && right_drive != 0 && left_drive != right_drive;
+}
+
+static int fs_copy_file_reopen_each_drive(xcopy_ctx_t *ctx,
+                                          const char *src_path,
+                                          const char *dst_path,
+                                          u32 *file_bytes,
+                                          char *err,
+                                          int err_sz) {
+    i16 fd;
+    u32 offset;
+    int hit_eof;
+
+    *file_bytes = 0ul;
+
+    fd = dss_creat(dst_path);
+    if (fd < 0) {
+        sprintf(err, "xcopy: %s: cannot create destination", dst_path);
+        (void)err_sz;
+        return 0;
+    }
+    if (dss_close((u8)fd) != 0u) {
+        sprintf(err, "xcopy: %s: cannot close destination", dst_path);
+        (void)err_sz;
+        return 0;
+    }
+
+    offset = 0ul;
+    while (1) {
+        u32 loaded_total;
+
+        fd = dss_open(src_path, O_RDONLY);
+        if (fd < 0) {
+            sprintf(err, "xcopy: %s: cannot open source", src_path);
+            (void)err_sz;
+            return 0;
+        }
+        if (offset != 0ul && dss_seek((u8)fd, offset, SEEK_SET) < 0) {
+            dss_close((u8)fd);
+            sprintf(err, "xcopy: %s: cannot seek source", src_path);
+            (void)err_sz;
+            return 0;
+        }
+        if (!buffer_load_pages(&ctx->buffer, ctx, (u8)fd, &loaded_total, &hit_eof, err, err_sz)) {
+            dss_close((u8)fd);
+            return 0;
+        }
+        (void)dss_close((u8)fd);
+
+        if (loaded_total == 0ul) {
+            break;
+        }
+
+        fd = dss_open(dst_path, O_RDWR);
+        if (fd < 0) {
+            sprintf(err, "xcopy: %s: cannot open destination", dst_path);
+            (void)err_sz;
+            return 0;
+        }
+        if (dss_seek((u8)fd, offset, SEEK_SET) < 0) {
+            dss_close((u8)fd);
+            sprintf(err, "xcopy: %s: cannot seek destination", dst_path);
+            (void)err_sz;
+            return 0;
+        }
+        if (!buffer_flush_pages(&ctx->buffer, ctx, (u8)fd, err, err_sz)) {
+            dss_close((u8)fd);
+            return 0;
+        }
+        if (dss_close((u8)fd) != 0u) {
+            sprintf(err, "xcopy: %s: cannot close destination", dst_path);
+            (void)err_sz;
+            return 0;
+        }
+
+        offset += loaded_total;
+        *file_bytes += loaded_total;
+        if (hit_eof) {
+            break;
+        }
+    }
+
+    return 1;
+}
+
 static int fs_copy_file_exact(xcopy_ctx_t *ctx,
                               const char *src_path,
                               u8 src_attr,
@@ -342,6 +449,25 @@ static int fs_copy_file_exact(xcopy_ctx_t *ctx,
     }
 
     printf("%s -> %s\r\n", src_path, dst_path);
+
+    if (fs_paths_have_different_drives(src_path, dst_path)) {
+        if (!fs_copy_file_reopen_each_drive(ctx, src_path, dst_path, &file_bytes, err, err_sz)) {
+            return 0;
+        }
+        if (ctx->opts.preserve_attr) {
+            u8 err_code;
+
+            if (!fs_setattr(dst_path, src_attr, &err_code)) {
+                sprintf(err, "xcopy: %s: cannot set attributes (err=%u)", dst_path, (unsigned int)err_code);
+                (void)err_sz;
+                return 0;
+            }
+        }
+
+        ctx->files_copied++;
+        ctx->bytes_copied += file_bytes;
+        return 1;
+    }
 
     src_fd = dss_open(src_path, O_RDONLY);
     if (src_fd < 0) {
@@ -531,20 +657,20 @@ static int fs_copy_directory_tree(xcopy_ctx_t *ctx,
             return 0;
         }
 
-        if (!fs_load_dir_entries(ctx, g_tree_pattern, g_dir_entries, &entry_count, &raw_found, err, err_sz)) {
+        if (!fs_load_dir_entries(ctx, g_tree_pattern, g_entries, &entry_count, &raw_found, err, err_sz)) {
             return 0;
         }
 
         for (i = 0u; i < entry_count; i++) {
             u8 attr;
 
-            attr = g_dir_entries[i].attr;
+            attr = g_entries[i].attr;
             if ((attr & FA_DIREC) != 0u || fs_should_skip_attr(ctx, attr)) {
                 continue;
             }
 
-            if (!util_copy_path(g_tree_entry_name, sizeof(g_tree_entry_name), g_dir_entries[i].name)) {
-                sprintf(err, "xcopy: %s: path too long", g_dir_entries[i].name);
+            if (!util_copy_path(g_tree_entry_name, sizeof(g_tree_entry_name), g_entries[i].name)) {
+                sprintf(err, "xcopy: %s: path too long", g_entries[i].name);
                 (void)err_sz;
                 return 0;
             }
@@ -563,13 +689,13 @@ static int fs_copy_directory_tree(xcopy_ctx_t *ctx,
         for (i = 0u; i < entry_count; i++) {
             u8 attr;
 
-            attr = g_dir_entries[i].attr;
+            attr = g_entries[i].attr;
             if ((attr & FA_DIREC) == 0u || fs_should_skip_attr(ctx, attr)) {
                 continue;
             }
 
-            if (!util_copy_path(g_tree_entry_name, sizeof(g_tree_entry_name), g_dir_entries[i].name)) {
-                sprintf(err, "xcopy: %s: path too long", g_dir_entries[i].name);
+            if (!util_copy_path(g_tree_entry_name, sizeof(g_tree_entry_name), g_entries[i].name)) {
+                sprintf(err, "xcopy: %s: path too long", g_entries[i].name);
                 (void)err_sz;
                 return 0;
             }
@@ -610,6 +736,7 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
                                  int err_sz) {
     int have_any;
     u16 entry_count;
+    u16 wildcard_count;
     int raw_found;
     u16 i;
 
@@ -626,7 +753,7 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
     }
 
     have_any = 0;
-    if (!fs_load_dir_entries(ctx, g_wild_pattern, g_wild_entries, &entry_count, &raw_found, err, err_sz)) {
+    if (!fs_load_dir_entries(ctx, g_wild_pattern, g_entries, &entry_count, &raw_found, err, err_sz)) {
         return 0;
     }
     if (!raw_found) {
@@ -634,6 +761,7 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
         (void)err_sz;
         return 0;
     }
+    wildcard_count = entry_count;
 
     for (i = 0u; i < entry_count; i++) {
         u8 attr;
@@ -644,14 +772,14 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
             return 0;
         }
 
-        attr = g_wild_entries[i].attr;
+        attr = g_entries[i].attr;
         if ((attr & FA_DIREC) != 0u || fs_should_skip_attr(ctx, attr)) {
             continue;
         }
 
         have_any = 1;
-        if (!util_copy_path(g_wild_entry_name, sizeof(g_wild_entry_name), g_wild_entries[i].name)) {
-            sprintf(err, "xcopy: %s: path too long", g_wild_entries[i].name);
+        if (!util_copy_path(g_wild_entry_name, sizeof(g_wild_entry_name), g_entries[i].name)) {
+            sprintf(err, "xcopy: %s: path too long", g_entries[i].name);
             (void)err_sz;
             return 0;
         }
@@ -678,7 +806,7 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
         }
     }
 
-    for (i = 0u; i < entry_count; i++) {
+    for (i = 0u; i < wildcard_count; i++) {
         u8 attr;
 
         if (input_poll_abort()) {
@@ -687,14 +815,21 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
             return 0;
         }
 
-        attr = g_wild_entries[i].attr;
+        if (!fs_load_dir_entries(ctx, g_wild_pattern, g_entries, &entry_count, &raw_found, err, err_sz)) {
+            return 0;
+        }
+        if (i >= entry_count) {
+            break;
+        }
+
+        attr = g_entries[i].attr;
         if ((attr & FA_DIREC) == 0u || fs_should_skip_attr(ctx, attr)) {
             continue;
         }
 
         have_any = 1;
-        if (!util_copy_path(g_wild_entry_name, sizeof(g_wild_entry_name), g_wild_entries[i].name)) {
-            sprintf(err, "xcopy: %s: path too long", g_wild_entries[i].name);
+        if (!util_copy_path(g_wild_entry_name, sizeof(g_wild_entry_name), g_entries[i].name)) {
+            sprintf(err, "xcopy: %s: path too long", g_entries[i].name);
             (void)err_sz;
             return 0;
         }

@@ -67,6 +67,9 @@ static void apply_copycmd_defaults(xcopy_opts_t *opts) {
     }
 }
 
+static xcopy_ctx_t g_main_ctx;
+static char g_main_err[MAX_TEXT];
+
 static int parse_opts(xcopy_opts_t *opts) {
     char cmdline[MAX_CMDLINE];
     char *argv[MAX_ARGV];
@@ -146,42 +149,44 @@ static int parse_opts(xcopy_opts_t *opts) {
 }
 
 void main(void) {
-    xcopy_ctx_t ctx;
-    char err[MAX_TEXT];
+    xcopy_ctx_t *ctx;
+    char *err;
 
-    memset(&ctx, 0, sizeof(ctx));
+    ctx = &g_main_ctx;
+    err = g_main_err;
+    memset(ctx, 0, sizeof(xcopy_ctx_t));
     err[0] = '\0';
 
     printf("Sprinter xcopy %s\r\n", XCOPY_VERSION);
 
-    if (!parse_opts(&ctx.opts)) {
+    if (!parse_opts(&ctx->opts)) {
         print_usage();
         dss_exit(2u);
         return;
     }
 
-    if (ctx.opts.show_help) {
+    if (ctx->opts.show_help) {
         print_usage();
         dss_exit(0u);
         return;
     }
 
-    if (ctx.opts.verbose) {
-        printf("Start %s -> %s\r\n", ctx.opts.src, ctx.opts.dst);
+    if (ctx->opts.verbose) {
+        printf("Start %s -> %s\r\n", ctx->opts.src, ctx->opts.dst);
     }
 
-    if (!xcopy_run(&ctx, err, sizeof(err))) {
-        ctx.had_error = 1u;
+    if (!xcopy_run(ctx, err, MAX_TEXT)) {
+        ctx->had_error = 1u;
         if (err[0] != '\0') {
             printf("%s\r\n", err);
         }
     }
 
-    ctx.end_cs = 0ul;
-    xcopy_print_stats(&ctx);
-    buffer_free(&ctx.buffer);
+    ctx->end_cs = 0ul;
+    xcopy_print_stats(ctx);
+    buffer_free(&ctx->buffer);
 
-    if (ctx.had_error || ctx.aborted) {
+    if (ctx->had_error || ctx->aborted) {
         dss_exit(1u);
         return;
     }

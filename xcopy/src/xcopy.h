@@ -12,7 +12,7 @@
 #define MAX_CMDLINE 256
 #define MAX_ARGV 16
 #define MAX_TEXT 256
-#define MAX_PATH_TEXT 192
+#define MAX_PATH_TEXT 176
 /* Directory traversal is iterative; keep pending directory queue bounded. */
 #define MAX_STACK_DEPTH 8
 #define XCOPY_MAX_DIR_ENTRIES 64
@@ -92,6 +92,7 @@ void util_normalize_path(char *path);
 int util_is_dot_entry(const char *name);
 int util_has_wildcards(const char *path);
 int util_has_trailing_sep(const char *path);
+int util_is_drive_root(const char *path);
 int util_get_basename(const char *path, char *name, int name_sz);
 int util_parent_path(const char *path, char *parent, int parent_sz);
 int util_split_parent_mask(const char *path, char *parent, int parent_sz, char *mask, int mask_sz);

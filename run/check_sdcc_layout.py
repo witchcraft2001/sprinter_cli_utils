@@ -15,12 +15,13 @@ def read_symbols(path):
 
 
 def main(argv):
-    if len(argv) != 3:
-        print("usage: check_sdcc_layout.py MAP STACK", file=sys.stderr)
+    if len(argv) not in (3, 4):
+        print("usage: check_sdcc_layout.py MAP STACK [MIN_STACK_GAP]", file=sys.stderr)
         return 2
 
     map_path = argv[1]
     stack = int(argv[2], 0)
+    min_stack_gap = int(argv[3], 0) if len(argv) == 4 else 0
     symbols = read_symbols(map_path)
     missing = [name for name in ("s__CODE", "l__CODE", "s__DATA", "l__DATA") if name not in symbols]
     if missing:
@@ -42,6 +43,9 @@ def main(argv):
         return 1
     if data_end >= stack:
         print("layout: DATA reaches stack", file=sys.stderr)
+        return 1
+    if stack - data_end < min_stack_gap:
+        print("layout: DATA leaves too little stack space", file=sys.stderr)
         return 1
     return 0
 

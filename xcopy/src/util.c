@@ -204,6 +204,13 @@ int util_has_trailing_sep(const char *path) {
     return (path[n - 1] == '\\' || path[n - 1] == '/');
 }
 
+int util_is_drive_root(const char *path) {
+    return ((path[0] >= 'A' && path[0] <= 'Z') ||
+            (path[0] >= 'a' && path[0] <= 'z')) &&
+           path[1] == ':' &&
+           (path[2] == '\0' || ((path[2] == '\\' || path[2] == '/') && path[3] == '\0'));
+}
+
 int util_get_basename(const char *path, char *name, int name_sz) {
     const char *p;
 
