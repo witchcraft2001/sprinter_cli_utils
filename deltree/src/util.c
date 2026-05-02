@@ -175,6 +175,53 @@ void util_normalize_path(char *path) {
     }
 }
 
+int util_make_absolute_path(char *out, int out_sz, const char *path) {
+    char cwd[MAX_PATH_TEXT];
+    char base[MAX_PATH_TEXT];
+    int disk;
+    int n;
+
+    if (path[0] == '\0') {
+        return util_copy_path(out, out_sz, path);
+    }
+
+    if (path[1] == ':') {
+        return util_copy_path(out, out_sz, path);
+    }
+
+    disk = (int)dss_getdisk();
+    base[0] = (char)('A' + disk);
+    base[1] = ':';
+
+    if (path[0] == '\\' || path[0] == '/') {
+        base[2] = '\0';
+        if ((int)strlen(path) + 2 >= out_sz) {
+            return 0;
+        }
+        strcpy(out, base);
+        strcat(out, path);
+        return 1;
+    }
+
+    if (dss_curdir(cwd) != 0) {
+        return util_copy_path(out, out_sz, path);
+    }
+
+    base[2] = '\0';
+    n = (int)strlen(cwd);
+    if (n == 0) {
+        if (!util_copy_path(cwd, sizeof(cwd), "\\")) {
+            return 0;
+        }
+    }
+
+    if ((int)strlen(base) + (int)strlen(cwd) >= (int)sizeof(base)) {
+        return 0;
+    }
+    strcat(base, cwd);
+    return util_join_path(out, out_sz, base, path);
+}
+
 int util_has_wildcards(const char *path) {
     while (*path != '\0') {
         if (*path == '*' || *path == '?') {

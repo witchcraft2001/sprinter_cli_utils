@@ -1,5 +1,8 @@
 # Utils Notes
 
+- This project and the sibling `../sdcc-sprinter-sdk` are built for SDCC 2.9.0 only.
+  Do not build or link these utilities with newer SDCC runtimes such as Homebrew SDCC 4.x.
+  When multiple SDCC versions are installed, pin builds with `SDCC290_BIN_DIR=/Users/dmitry/dev/zx/sdcc2/opt/sdcc-2.9.0/bin` or another verified SDCC 2.9.0 toolchain path.
 - After every iteration of code changes, rebuild the affected artifacts before finishing the task.
 - For utility changes, rebuild the modified utility with its local `Makefile`.
 - When changes affect packaged outputs or release contents, regenerate `build/utils.img` and `dist/utils.zip` via `run/create_floppy_image.sh`.

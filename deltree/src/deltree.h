@@ -14,8 +14,6 @@
 #define MAX_STACK_DEPTH 20
 #define MAX_TARGETS 12
 #define MAX_WILDCARD_SKIPS 24
-#define MAX_DIR_ENTRIES 64
-#define ENTRY_NAME_MAX 32
 
 #ifndef DELTREE_VERSION
 #define DELTREE_VERSION "0.1.00000000"
@@ -50,6 +48,7 @@ int util_copy_path(char *dst, int dst_sz, const char *src);
 int util_join_path(char *out, int out_sz, const char *base, const char *name);
 int util_is_dot_entry(const char *name);
 void util_normalize_path(char *path);
+int util_make_absolute_path(char *out, int out_sz, const char *path);
 int util_has_wildcards(const char *path);
 int util_is_root_path(const char *path);
 

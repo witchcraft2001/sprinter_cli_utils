@@ -15,6 +15,7 @@ static void print_usage(void) {
 static int parse_opts(deltree_opts_t *opts) {
     char cmdline[MAX_CMDLINE];
     char *argv[MAX_ARGV];
+    char abs_path[MAX_PATH_TEXT];
     int argc;
     int i;
     int paths;
@@ -50,6 +51,15 @@ static int parse_opts(deltree_opts_t *opts) {
         }
 
         if (!util_copy_path(opts->paths[paths], sizeof(opts->paths[paths]), argv[i])) {
+            printf("deltree: path too long\r\n");
+            return 0;
+        }
+        util_normalize_path(opts->paths[paths]);
+        if (!util_make_absolute_path(abs_path, sizeof(abs_path), opts->paths[paths])) {
+            printf("deltree: path too long\r\n");
+            return 0;
+        }
+        if (!util_copy_path(opts->paths[paths], sizeof(opts->paths[paths]), abs_path)) {
             printf("deltree: path too long\r\n");
             return 0;
         }
