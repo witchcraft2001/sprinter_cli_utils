@@ -7,11 +7,17 @@ typedef struct {
     unsigned char expanded;
 } deltree_frame_t;
 
+typedef struct {
+    char path[MAX_PATH_TEXT];
+    u8 attr;
+} deltree_batch_entry_t;
+
 const char *g_fs_attr_path;
 u8 g_fs_attr_mode;
 u8 g_fs_attr_value;
 u8 g_fs_attr_result;
 static deltree_frame_t g_delete_stack[MAX_STACK_DEPTH];
+static deltree_batch_entry_t g_file_batch[MAX_DELETE_BATCH];
 static dss_find_t g_scan;
 static unsigned char g_fs_progress_enabled = 1u;
 
@@ -138,6 +144,47 @@ int fs_delete_file_known_attr(const char *path, u8 attr, char *err, int err_sz) 
 
 void fs_set_progress_enabled(unsigned char enabled) {
     g_fs_progress_enabled = enabled;
+}
+
+static int fs_load_file_batch(const char *dir,
+                              u16 *count,
+                              char *err,
+                              int err_sz) {
+    char pattern[MAX_PATH_TEXT];
+
+    *count = 0u;
+
+    if (!util_join_path(pattern, sizeof(pattern), dir, "*.*")) {
+        sprintf(err, "deltree: %s: path too long", dir);
+        (void)err_sz;
+        return 0;
+    }
+    if (dss_ffirst(pattern, &g_scan, 0x3Fu) != 0) {
+        return 1;
+    }
+
+    while (1) {
+        if (!util_is_dot_entry(g_scan.ff_name) &&
+            (g_scan.attr & (FA_LABEL | FA_DIREC)) == 0u) {
+            if (!util_join_path(g_file_batch[*count].path,
+                                sizeof(g_file_batch[*count].path),
+                                dir,
+                                g_scan.ff_name)) {
+                sprintf(err, "deltree: %s\\%s: path too long", dir, g_scan.ff_name);
+                (void)err_sz;
+                return 0;
+            }
+            g_file_batch[*count].attr = g_scan.attr;
+            (*count)++;
+            if (*count >= MAX_DELETE_BATCH) {
+                return 1;
+            }
+        }
+
+        if (dss_fnext(&g_scan) != 0) {
+            return 1;
+        }
+    }
 }
 
 static int fs_find_child_entry(const char *dir,
@@ -303,25 +350,35 @@ int fs_delete_tree_known_attr(const char *root, u8 attr, char *err, int err_sz) 
         frame = &g_delete_stack[top];
 
         if (!frame->expanded) {
-            char child_path[MAX_PATH_TEXT];
-            u8 child_attr;
-            int found;
+            u16 batch_count;
+            u16 i;
 
-            if (!fs_find_child_entry(frame->path,
-                                     0u,
-                                     child_path,
-                                     sizeof(child_path),
-                                     &child_attr,
-                                     &found,
-                                     err,
-                                     err_sz)) {
+            if (!fs_load_file_batch(frame->path, &batch_count, err, err_sz)) {
                 return 0;
             }
-            if (found) {
-                if (!fs_delete_file_with_attrs(child_path, child_attr, err, err_sz)) {
+            if (batch_count > 0u) {
+                for (i = 0u; i < batch_count; i++) {
+                    if ((i & 7u) == 0u && input_poll_abort()) {
+                        sprintf(err, "deltree: Aborted");
+                        (void)err_sz;
+                        return 0;
+                    }
+                    if (!fs_delete_file_with_attrs(g_file_batch[i].path,
+                                                   g_file_batch[i].attr,
+                                                   err,
+                                                   err_sz)) {
+                        return 0;
+                    }
+                }
+                if (batch_count >= MAX_DELETE_BATCH) {
+                    continue;
+                }
+                if (!fs_load_file_batch(frame->path, &batch_count, err, err_sz)) {
                     return 0;
                 }
-                continue;
+                if (batch_count > 0u) {
+                    continue;
+                }
             }
 
             frame->expanded = 1u;
