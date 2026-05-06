@@ -566,6 +566,7 @@ static int fs_copy_file_exact(xcopy_ctx_t *ctx,
                               u8 src_attr,
                               const char *dst_path,
                               int parent_ready,
+                              int dst_known_missing,
                               char *err,
                               int err_sz) {
     i16 src_fd;
@@ -603,11 +604,16 @@ static int fs_copy_file_exact(xcopy_ctx_t *ctx,
     }
     file_bytes = 0ul;
 
-    dst_exists = fs_probe_path(dst_path, &dst_attr, &dst_is_dir);
-    if (dst_exists && dst_is_dir) {
-        sprintf(err, "xcopy: %s: destination is a directory", dst_path);
-        (void)err_sz;
-        return 0;
+    if (dst_known_missing || ctx->opts.assume_yes || ctx->overwrite_all) {
+        dst_exists = 0;
+        dst_is_dir = 0;
+    } else {
+        dst_exists = fs_probe_path(dst_path, &dst_attr, &dst_is_dir);
+        if (dst_exists && dst_is_dir) {
+            sprintf(err, "xcopy: %s: destination is a directory", dst_path);
+            (void)err_sz;
+            return 0;
+        }
     }
 
     if (dst_exists && !ctx->opts.assume_yes && !ctx->overwrite_all) {
@@ -800,6 +806,7 @@ static int fs_copy_directory_tree(xcopy_ctx_t *ctx,
                                   int err_sz) {
     int found;
     int dst_ready;
+    int dst_fresh;
     u8 attr;
     u16 created_count;
 
@@ -873,8 +880,10 @@ static int fs_copy_directory_tree(xcopy_ctx_t *ctx,
             }
             ctx->dirs_created += (u32)created_count;
             dst_ready = 1;
+            dst_fresh = (created_count != 0u);
         } else {
             dst_ready = 0;
+            dst_fresh = 0;
         }
 
         if (dss_ffirst(g_tree_pattern, &g_scan, 0x3Fu) != 0) {
@@ -974,8 +983,9 @@ static int fs_copy_directory_tree(xcopy_ctx_t *ctx,
                     }
                     ctx->dirs_created += (u32)created_count;
                     dst_ready = 1;
+                    dst_fresh = (created_count != 0u);
                 }
-                if (!fs_copy_file_exact(ctx, g_tree_child_src, attr, g_tree_child_dst, 1, err, err_sz)) {
+                if (!fs_copy_file_exact(ctx, g_tree_child_src, attr, g_tree_child_dst, 1, dst_fresh, err, err_sz)) {
                     path_queue_free(&g_entry_queue);
                     path_queue_free(&g_tree_queue);
                     return 0;
@@ -999,6 +1009,7 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
     int have_any;
     int found;
     int dst_ready;
+    int dst_fresh;
     u8 attr;
     u16 created_count;
 
@@ -1016,6 +1027,7 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
 
     have_any = 0;
     dst_ready = 0;
+    dst_fresh = 0;
     if (dss_ffirst(g_wild_pattern, &g_scan, 0x3Fu) != 0) {
         sprintf(err, "xcopy: %s: source not found", g_wild_pattern);
         (void)err_sz;
@@ -1127,8 +1139,9 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
                 }
                 ctx->dirs_created += (u32)created_count;
                 dst_ready = 1;
+                dst_fresh = (created_count != 0u);
             }
-            if (!fs_copy_file_exact(ctx, g_wild_child_src, attr, g_wild_child_dst, 1, err, err_sz)) {
+            if (!fs_copy_file_exact(ctx, g_wild_child_src, attr, g_wild_child_dst, 1, dst_fresh, err, err_sz)) {
                 path_queue_free(&g_entry_queue);
                 path_queue_free(&g_wild_queue);
                 return 0;
@@ -1285,7 +1298,7 @@ int xcopy_run(xcopy_ctx_t *ctx, char *err, int err_sz) {
     if (!fs_resolve_single_file_destination(ctx, ctx->opts.src, ctx->opts.dst, g_run_dst_path, sizeof(g_run_dst_path), err, err_sz)) {
         return 0;
     }
-    return fs_copy_file_exact(ctx, ctx->opts.src, src_attr, g_run_dst_path, 0, err, err_sz);
+    return fs_copy_file_exact(ctx, ctx->opts.src, src_attr, g_run_dst_path, 0, 0, err, err_sz);
 }
 
 void xcopy_print_stats(const xcopy_ctx_t *ctx) {
