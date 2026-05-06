@@ -467,8 +467,21 @@ static int fs_copy_file_reopen_each_drive(xcopy_ctx_t *ctx,
     i16 fd;
     u32 offset;
     int hit_eof;
+    u32 loaded_total;
 
     *file_bytes = 0ul;
+
+    fd = dss_open(src_path, O_RDONLY);
+    if (fd < 0) {
+        sprintf(err, "xcopy: %s: cannot open source", src_path);
+        (void)err_sz;
+        return 0;
+    }
+    if (!buffer_load_pages(&ctx->buffer, ctx, (u8)fd, &loaded_total, &hit_eof, err, err_sz)) {
+        dss_close((u8)fd);
+        return 0;
+    }
+    (void)dss_close((u8)fd);
 
     fd = dss_creat(dst_path);
     if (fd < 0) {
@@ -476,16 +489,24 @@ static int fs_copy_file_reopen_each_drive(xcopy_ctx_t *ctx,
         (void)err_sz;
         return 0;
     }
+    if (loaded_total != 0ul) {
+        if (!buffer_flush_pages(&ctx->buffer, ctx, (u8)fd, err, err_sz)) {
+            dss_close((u8)fd);
+            return 0;
+        }
+    }
     if (dss_close((u8)fd) != 0u) {
         sprintf(err, "xcopy: %s: cannot close destination", dst_path);
         (void)err_sz;
         return 0;
     }
+    *file_bytes = loaded_total;
+    if (hit_eof) {
+        return 1;
+    }
 
-    offset = 0ul;
+    offset = loaded_total;
     while (1) {
-        u32 loaded_total;
-
         fd = dss_open(src_path, O_RDONLY);
         if (fd < 0) {
             sprintf(err, "xcopy: %s: cannot open source", src_path);
@@ -544,6 +565,7 @@ static int fs_copy_file_exact(xcopy_ctx_t *ctx,
                               const char *src_path,
                               u8 src_attr,
                               const char *dst_path,
+                              int parent_ready,
                               char *err,
                               int err_sz) {
     i16 src_fd;
@@ -606,10 +628,12 @@ static int fs_copy_file_exact(xcopy_ctx_t *ctx,
         }
     }
 
-    if (!fs_ensure_parent_dir(dst_path, &created_count, err, err_sz)) {
-        return 0;
+    if (!parent_ready) {
+        if (!fs_ensure_parent_dir(dst_path, &created_count, err, err_sz)) {
+            return 0;
+        }
+        ctx->dirs_created += (u32)created_count;
     }
-    ctx->dirs_created += (u32)created_count;
 
     if (dst_exists && !fs_remove_existing_file(dst_path, err, err_sz)) {
         return 0;
@@ -775,6 +799,7 @@ static int fs_copy_directory_tree(xcopy_ctx_t *ctx,
                                   char *err,
                                   int err_sz) {
     int found;
+    int dst_ready;
     u8 attr;
     u16 created_count;
 
@@ -847,6 +872,9 @@ static int fs_copy_directory_tree(xcopy_ctx_t *ctx,
                 return 0;
             }
             ctx->dirs_created += (u32)created_count;
+            dst_ready = 1;
+        } else {
+            dst_ready = 0;
         }
 
         if (dss_ffirst(g_tree_pattern, &g_scan, 0x3Fu) != 0) {
@@ -937,10 +965,21 @@ static int fs_copy_directory_tree(xcopy_ctx_t *ctx,
                     path_queue_free(&g_tree_queue);
                     return 0;
                 }
-            } else if (!fs_copy_file_exact(ctx, g_tree_child_src, attr, g_tree_child_dst, err, err_sz)) {
-                path_queue_free(&g_entry_queue);
-                path_queue_free(&g_tree_queue);
-                return 0;
+            } else {
+                if (!dst_ready) {
+                    if (!fs_ensure_dir_tree(g_tree_current_dst, &created_count, err, err_sz)) {
+                        path_queue_free(&g_entry_queue);
+                        path_queue_free(&g_tree_queue);
+                        return 0;
+                    }
+                    ctx->dirs_created += (u32)created_count;
+                    dst_ready = 1;
+                }
+                if (!fs_copy_file_exact(ctx, g_tree_child_src, attr, g_tree_child_dst, 1, err, err_sz)) {
+                    path_queue_free(&g_entry_queue);
+                    path_queue_free(&g_tree_queue);
+                    return 0;
+                }
             }
         }
 
@@ -959,7 +998,9 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
                                  int err_sz) {
     int have_any;
     int found;
+    int dst_ready;
     u8 attr;
+    u16 created_count;
 
     if (src_parent[0] == '\0') {
         if (!util_copy_path(g_wild_pattern, sizeof(g_wild_pattern), mask)) {
@@ -974,6 +1015,7 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
     }
 
     have_any = 0;
+    dst_ready = 0;
     if (dss_ffirst(g_wild_pattern, &g_scan, 0x3Fu) != 0) {
         sprintf(err, "xcopy: %s: source not found", g_wild_pattern);
         (void)err_sz;
@@ -1076,10 +1118,21 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
                 path_queue_free(&g_wild_queue);
                 return 0;
             }
-        } else if (!fs_copy_file_exact(ctx, g_wild_child_src, attr, g_wild_child_dst, err, err_sz)) {
-            path_queue_free(&g_entry_queue);
-            path_queue_free(&g_wild_queue);
-            return 0;
+        } else {
+            if (!dst_ready) {
+                if (!fs_ensure_dir_tree(dst_root, &created_count, err, err_sz)) {
+                    path_queue_free(&g_entry_queue);
+                    path_queue_free(&g_wild_queue);
+                    return 0;
+                }
+                ctx->dirs_created += (u32)created_count;
+                dst_ready = 1;
+            }
+            if (!fs_copy_file_exact(ctx, g_wild_child_src, attr, g_wild_child_dst, 1, err, err_sz)) {
+                path_queue_free(&g_entry_queue);
+                path_queue_free(&g_wild_queue);
+                return 0;
+            }
         }
     }
 
@@ -1232,7 +1285,7 @@ int xcopy_run(xcopy_ctx_t *ctx, char *err, int err_sz) {
     if (!fs_resolve_single_file_destination(ctx, ctx->opts.src, ctx->opts.dst, g_run_dst_path, sizeof(g_run_dst_path), err, err_sz)) {
         return 0;
     }
-    return fs_copy_file_exact(ctx, ctx->opts.src, src_attr, g_run_dst_path, err, err_sz);
+    return fs_copy_file_exact(ctx, ctx->opts.src, src_attr, g_run_dst_path, 0, err, err_sz);
 }
 
 void xcopy_print_stats(const xcopy_ctx_t *ctx) {
