@@ -13,12 +13,11 @@
 #define MAX_ARGV 16
 #define MAX_TEXT 256
 #define MAX_PATH_TEXT 176
-/* Directory traversal is iterative; keep pending directory queue bounded. */
-#define MAX_STACK_DEPTH 8
-#define XCOPY_MAX_DIR_ENTRIES 64
 #define XCOPY_ENTRY_NAME_MAX 32
 
 #define XCOPY_PAGE_SIZE 16384u
+#define XCOPY_QUEUE_HEADER_SIZE 1u
+#define XCOPY_PENDING_PAGE_ENTRIES ((XCOPY_PAGE_SIZE - XCOPY_QUEUE_HEADER_SIZE) / MAX_PATH_TEXT)
 #define XCOPY_MAX_BUFFER_PAGES 4
 
 #define XCOPY_CONFIRM_NO 0

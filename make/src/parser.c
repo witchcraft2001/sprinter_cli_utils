@@ -14,6 +14,42 @@ static char g_recipe_cleaned[MAX_LINE];
 static char g_parse_line[MAX_LINE];
 static int g_current_target;
 
+static int read_make_line(FILE *fp, char *buf, int buf_sz, int *too_long) {
+    int ch;
+    int len;
+
+    *too_long = 0;
+    len = 0;
+
+    while ((ch = fgetc(fp)) != EOF) {
+        if (ch == '\r') {
+            int next;
+
+            next = fgetc(fp);
+            if (next != '\n' && next != EOF) {
+                ungetc(next, fp);
+            }
+            break;
+        }
+        if (ch == '\n') {
+            break;
+        }
+
+        if (len < buf_sz - 1) {
+            buf[len++] = (char)ch;
+        } else {
+            *too_long = 1;
+        }
+    }
+
+    if (ch == EOF && len == 0) {
+        return 0;
+    }
+
+    buf[len] = '\0';
+    return 1;
+}
+
 static int split_tokens(char *s, const char *arr[MAX_DEPS], int max_tokens) {
     int n;
     char *p;
@@ -293,6 +329,7 @@ static void diag_dss_open_probe(const char *path) {
 int parser_load_file(make_ctx_t *ctx, const char *path) {
     FILE *fp;
     int line_no;
+    int too_long;
 
     fp = fopen(path, "r");
     if (fp == (FILE *)0) {
@@ -314,8 +351,15 @@ int parser_load_file(make_ctx_t *ctx, const char *path) {
 
     g_current_target = -1;
     line_no = 0;
-    while (fgets(g_parse_line, sizeof(g_parse_line), fp) != (char *)0) {
+    while (read_make_line(fp, g_parse_line, sizeof(g_parse_line), &too_long)) {
         line_no++;
+        if (too_long) {
+            MAKE_DIAG("diag: line too long line %d\n", line_no);
+            MAKE_LOG("make: line too long\n");
+            fclose(fp);
+            return 0;
+        }
+
         util_rtrim(g_parse_line);
         util_strip_comment(g_parse_line);
         util_rtrim(g_parse_line);

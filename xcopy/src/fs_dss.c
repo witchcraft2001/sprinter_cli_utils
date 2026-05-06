@@ -1,23 +1,29 @@
 #include "xcopy.h"
 
-typedef struct {
-    char src[MAX_PATH_TEXT];
-    char dst[MAX_PATH_TEXT];
-} copy_frame_t;
+#define XCOPY_QUEUE_WINDOW 0xC000u
+#define XCOPY_QUEUE_PREV_NONE 0xFFu
 
 typedef struct {
-    char name[XCOPY_ENTRY_NAME_MAX];
-    u8 attr;
-} copy_entry_t;
+    u8 page;
+    u8 saved_win3;
+    unsigned char has_page;
+    u16 count;
+    u8 used;
+} path_queue_t;
 
 const char *g_xcopy_attr_path;
 u8 g_xcopy_attr_mode;
 u8 g_xcopy_attr_value;
 u8 g_xcopy_attr_result;
-static copy_frame_t g_copy_stack[MAX_STACK_DEPTH];
+static path_queue_t g_tree_queue;
+static path_queue_t g_wild_queue;
+static path_queue_t g_entry_queue;
 static dss_find_t g_scan;
 static dss_find_t g_probe;
-static copy_entry_t g_entries[XCOPY_MAX_DIR_ENTRIES];
+static char g_tree_root_src[MAX_PATH_TEXT];
+static char g_tree_root_dst[MAX_PATH_TEXT];
+static char g_tree_current_rel[MAX_PATH_TEXT];
+static char g_tree_child_rel[MAX_PATH_TEXT];
 static char g_tree_current_src[MAX_PATH_TEXT];
 static char g_tree_current_dst[MAX_PATH_TEXT];
 static char g_tree_pattern[MAX_PATH_TEXT];
@@ -34,6 +40,9 @@ static char g_single_base[XCOPY_ENTRY_NAME_MAX];
 static char g_run_src_parent[MAX_PATH_TEXT];
 static char g_run_src_mask[XCOPY_ENTRY_NAME_MAX];
 static char g_run_dst_path[MAX_PATH_TEXT];
+
+static void path_queue_map(const path_queue_t *q);
+static void path_queue_restore(const path_queue_t *q);
 
 u8 xcopy_dss_attrib_call(void) __naked {
     __asm
@@ -53,6 +62,209 @@ _xcopy_attr_err:
         ld      hl, #0x0001
         ret
     __endasm;
+}
+
+static int path_queue_init(path_queue_t *q, char *err, int err_sz) {
+    memset(q, 0, sizeof(path_queue_t));
+    q->saved_win3 = inp(PORT_WIN3);
+    q->page = dss_getmem();
+    if (q->page == 0xFFu) {
+        sprintf(err, "xcopy: cannot allocate directory queue page");
+        (void)err_sz;
+        return 0;
+    }
+    q->has_page = 1u;
+    path_queue_map(q);
+    *((u8 *)XCOPY_QUEUE_WINDOW) = XCOPY_QUEUE_PREV_NONE;
+    path_queue_restore(q);
+    return 1;
+}
+
+static void path_queue_free(path_queue_t *q) {
+    if (q->has_page) {
+        while (q->page != XCOPY_QUEUE_PREV_NONE) {
+            u8 page;
+            u8 prev;
+
+            page = q->page;
+            path_queue_map(q);
+            prev = *((u8 *)XCOPY_QUEUE_WINDOW);
+            path_queue_restore(q);
+            dss_freemem(page);
+            q->page = prev;
+        }
+        outp(PORT_WIN3, q->saved_win3);
+    }
+    memset(q, 0, sizeof(path_queue_t));
+}
+
+static void path_queue_map(const path_queue_t *q) {
+    dss_setwin(3u, q->page);
+}
+
+static void path_queue_restore(const path_queue_t *q) {
+    outp(PORT_WIN3, q->saved_win3);
+}
+
+static char *path_queue_slot(u16 index) {
+    return (char *)(XCOPY_QUEUE_WINDOW + XCOPY_QUEUE_HEADER_SIZE + (u16)(index * MAX_PATH_TEXT));
+}
+
+static int path_queue_push(path_queue_t *q, const char *path, char *err, int err_sz) {
+    char *slot;
+
+    if (q->used >= XCOPY_PENDING_PAGE_ENTRIES) {
+        u8 prev;
+
+        prev = q->page;
+        q->page = dss_getmem();
+        if (q->page == 0xFFu) {
+            q->page = prev;
+            sprintf(err, "xcopy: cannot allocate directory queue page");
+            (void)err_sz;
+            return 0;
+        }
+        q->used = 0u;
+        path_queue_map(q);
+        *((u8 *)XCOPY_QUEUE_WINDOW) = prev;
+        path_queue_restore(q);
+    }
+
+    path_queue_map(q);
+    slot = path_queue_slot(q->used);
+    memset(slot, 0, MAX_PATH_TEXT);
+    if (!util_copy_path(slot, MAX_PATH_TEXT, path)) {
+        path_queue_restore(q);
+        sprintf(err, "xcopy: %s: path too long", path);
+        (void)err_sz;
+        return 0;
+    }
+    path_queue_restore(q);
+    q->used++;
+    q->count++;
+    return 1;
+}
+
+static int path_queue_pop(path_queue_t *q, char *path, int path_sz, int *found, char *err, int err_sz) {
+    *found = 0;
+    if (q->count == 0u) {
+        return 1;
+    }
+
+    if (q->used == 0u) {
+        u8 current;
+        u8 prev;
+
+        current = q->page;
+        path_queue_map(q);
+        prev = *((u8 *)XCOPY_QUEUE_WINDOW);
+        path_queue_restore(q);
+        if (prev == XCOPY_QUEUE_PREV_NONE) {
+            sprintf(err, "xcopy: directory queue is corrupt");
+            (void)err_sz;
+            return 0;
+        }
+        dss_freemem(current);
+        q->page = prev;
+        q->used = (u8)XCOPY_PENDING_PAGE_ENTRIES;
+    }
+
+    q->used--;
+    path_queue_map(q);
+    if (!util_copy_path(path, path_sz, path_queue_slot(q->used))) {
+        path_queue_restore(q);
+        sprintf(err, "xcopy: pending path too long");
+        (void)err_sz;
+        return 0;
+    }
+    path_queue_restore(q);
+    q->count--;
+    *found = 1;
+    return 1;
+}
+
+static int path_queue_push_entry(path_queue_t *q, const char *name, u8 attr, char *err, int err_sz) {
+    char *slot;
+
+    if (q->used >= XCOPY_PENDING_PAGE_ENTRIES) {
+        u8 prev;
+
+        prev = q->page;
+        q->page = dss_getmem();
+        if (q->page == 0xFFu) {
+            q->page = prev;
+            sprintf(err, "xcopy: cannot allocate directory entry page");
+            (void)err_sz;
+            return 0;
+        }
+        q->used = 0u;
+        path_queue_map(q);
+        *((u8 *)XCOPY_QUEUE_WINDOW) = prev;
+        path_queue_restore(q);
+    }
+
+    path_queue_map(q);
+    slot = path_queue_slot(q->used);
+    memset(slot, 0, MAX_PATH_TEXT);
+    slot[0] = (char)attr;
+    if (!util_copy_path(slot + 1, MAX_PATH_TEXT - 1, name)) {
+        path_queue_restore(q);
+        sprintf(err, "xcopy: %s: filename too long", name);
+        (void)err_sz;
+        return 0;
+    }
+    path_queue_restore(q);
+    q->used++;
+    q->count++;
+    return 1;
+}
+
+static int path_queue_pop_entry(path_queue_t *q,
+                                char *name,
+                                int name_sz,
+                                u8 *attr,
+                                int *found,
+                                char *err,
+                                int err_sz) {
+    char *slot;
+
+    *found = 0;
+    if (q->count == 0u) {
+        return 1;
+    }
+
+    if (q->used == 0u) {
+        u8 current;
+        u8 prev;
+
+        current = q->page;
+        path_queue_map(q);
+        prev = *((u8 *)XCOPY_QUEUE_WINDOW);
+        path_queue_restore(q);
+        if (prev == XCOPY_QUEUE_PREV_NONE) {
+            sprintf(err, "xcopy: directory entry queue is corrupt");
+            (void)err_sz;
+            return 0;
+        }
+        dss_freemem(current);
+        q->page = prev;
+        q->used = (u8)XCOPY_PENDING_PAGE_ENTRIES;
+    }
+
+    q->used--;
+    path_queue_map(q);
+    slot = path_queue_slot(q->used);
+    *attr = (u8)slot[0];
+    if (!util_copy_path(name, name_sz, slot + 1)) {
+        path_queue_restore(q);
+        sprintf(err, "xcopy: pending filename too long");
+        (void)err_sz;
+        return 0;
+    }
+    path_queue_restore(q);
+    q->count--;
+    *found = 1;
+    return 1;
 }
 
 int fs_getattr(const char *path, u8 *attr, u8 *err_code) {
@@ -213,51 +425,6 @@ static int fs_should_skip_attr(const xcopy_ctx_t *ctx, u8 attr) {
         return 1;
     }
     return 0;
-}
-
-static int fs_load_dir_entries(xcopy_ctx_t *ctx,
-                               const char *pattern,
-                               copy_entry_t *entries,
-                               u16 *count,
-                               int *raw_found,
-                               char *err,
-                               int err_sz) {
-    *count = 0u;
-    *raw_found = 0;
-
-    if (dss_ffirst(pattern, &g_scan, 0x3Fu) != 0) {
-        return 1;
-    }
-
-    *raw_found = 1;
-    while (1) {
-        if (input_poll_abort()) {
-            ctx->aborted = 1u;
-            util_set_error(err, err_sz, "xcopy: ", "aborted");
-            return 0;
-        }
-
-        if (!util_is_dot_entry(g_scan.ff_name) && (g_scan.attr & FA_LABEL) == 0u) {
-            if (*count >= XCOPY_MAX_DIR_ENTRIES) {
-                sprintf(err, "xcopy: %s: too many directory entries", pattern);
-                (void)err_sz;
-                return 0;
-            }
-            if (!util_copy_path(entries[*count].name,
-                                sizeof(entries[*count].name),
-                                g_scan.ff_name)) {
-                sprintf(err, "xcopy: %s: filename too long", g_scan.ff_name);
-                (void)err_sz;
-                return 0;
-            }
-            entries[*count].attr = g_scan.attr;
-            (*count)++;
-        }
-
-        if (dss_fnext(&g_scan) != 0) {
-            return 1;
-        }
-    }
 }
 
 static int fs_remove_existing_file(const char *path, char *err, int err_sz) {
@@ -607,36 +774,66 @@ static int fs_copy_directory_tree(xcopy_ctx_t *ctx,
                                   const char *dst_root,
                                   char *err,
                                   int err_sz) {
-    int pending;
+    int found;
+    u8 attr;
+    u16 created_count;
 
-    pending = 1;
-    memset(g_copy_stack, 0, sizeof(g_copy_stack));
-    if (!util_copy_path(g_copy_stack[0].src, sizeof(g_copy_stack[0].src), src_root) ||
-        !util_copy_path(g_copy_stack[0].dst, sizeof(g_copy_stack[0].dst), dst_root)) {
+    if (!util_copy_path(g_tree_root_src, sizeof(g_tree_root_src), src_root) ||
+        !util_copy_path(g_tree_root_dst, sizeof(g_tree_root_dst), dst_root)) {
         sprintf(err, "xcopy: %s: path too long", src_root);
         (void)err_sz;
         return 0;
     }
 
-    while (pending > 0) {
-        copy_frame_t *frame;
-        u16 entry_count;
-        int raw_found;
-        u16 i;
-        u16 created_count;
+    if (!path_queue_init(&g_tree_queue, err, err_sz)) {
+        return 0;
+    }
+    if (!path_queue_push(&g_tree_queue, "", err, err_sz)) {
+        path_queue_free(&g_tree_queue);
+        return 0;
+    }
+
+    while (1) {
+        if (!path_queue_pop(&g_tree_queue,
+                            g_tree_current_rel,
+                            sizeof(g_tree_current_rel),
+                            &found,
+                            err,
+                            err_sz)) {
+            path_queue_free(&g_tree_queue);
+            return 0;
+        }
+        if (!found) {
+            break;
+        }
+
+        if (g_tree_current_rel[0] == '\0') {
+            if (!util_copy_path(g_tree_current_src, sizeof(g_tree_current_src), g_tree_root_src) ||
+                !util_copy_path(g_tree_current_dst, sizeof(g_tree_current_dst), g_tree_root_dst)) {
+                sprintf(err, "xcopy: %s: path too long", g_tree_root_src);
+                (void)err_sz;
+                path_queue_free(&g_tree_queue);
+                return 0;
+            }
+        } else if (!util_join_path(g_tree_current_src, sizeof(g_tree_current_src), g_tree_root_src, g_tree_current_rel) ||
+                   !util_join_path(g_tree_current_dst, sizeof(g_tree_current_dst), g_tree_root_dst, g_tree_current_rel)) {
+            sprintf(err, "xcopy: %s\\%s: path too long", g_tree_root_src, g_tree_current_rel);
+            (void)err_sz;
+            path_queue_free(&g_tree_queue);
+            return 0;
+        }
 
         if (input_poll_abort()) {
             ctx->aborted = 1u;
             util_set_error(err, err_sz, "xcopy: ", "aborted");
+            path_queue_free(&g_tree_queue);
             return 0;
         }
 
-        pending--;
-        frame = &g_copy_stack[pending];
-        if (!util_copy_path(g_tree_current_src, sizeof(g_tree_current_src), frame->src) ||
-            !util_copy_path(g_tree_current_dst, sizeof(g_tree_current_dst), frame->dst)) {
-            sprintf(err, "xcopy: %s: path too long", frame->src);
+        if (!util_join_path(g_tree_pattern, sizeof(g_tree_pattern), g_tree_current_src, "*.*")) {
+            sprintf(err, "xcopy: %s: path too long", g_tree_current_src);
             (void)err_sz;
+            path_queue_free(&g_tree_queue);
             return 0;
         }
 
@@ -646,85 +843,111 @@ static int fs_copy_directory_tree(xcopy_ctx_t *ctx,
 
         if (ctx->opts.copy_empty) {
             if (!fs_ensure_dir_tree(g_tree_current_dst, &created_count, err, err_sz)) {
+                path_queue_free(&g_tree_queue);
                 return 0;
             }
             ctx->dirs_created += (u32)created_count;
         }
 
-        if (!util_join_path(g_tree_pattern, sizeof(g_tree_pattern), g_tree_current_src, "*.*")) {
-            sprintf(err, "xcopy: %s: path too long", g_tree_current_src);
-            (void)err_sz;
+        if (dss_ffirst(g_tree_pattern, &g_scan, 0x3Fu) != 0) {
+            continue;
+        }
+
+        if (!path_queue_init(&g_entry_queue, err, err_sz)) {
+            path_queue_free(&g_tree_queue);
             return 0;
         }
 
-        if (!fs_load_dir_entries(ctx, g_tree_pattern, g_entries, &entry_count, &raw_found, err, err_sz)) {
-            return 0;
-        }
-
-        for (i = 0u; i < entry_count; i++) {
-            u8 attr;
-
-            attr = g_entries[i].attr;
-            if ((attr & FA_DIREC) != 0u || fs_should_skip_attr(ctx, attr)) {
-                continue;
-            }
-
-            if (!util_copy_path(g_tree_entry_name, sizeof(g_tree_entry_name), g_entries[i].name)) {
-                sprintf(err, "xcopy: %s: path too long", g_entries[i].name);
-                (void)err_sz;
+        while (1) {
+            if (input_poll_abort()) {
+                ctx->aborted = 1u;
+                util_set_error(err, err_sz, "xcopy: ", "aborted");
+                path_queue_free(&g_entry_queue);
+                path_queue_free(&g_tree_queue);
                 return 0;
             }
+
+            attr = g_scan.attr;
+            if (!util_copy_path(g_tree_entry_name, sizeof(g_tree_entry_name), g_scan.ff_name)) {
+                sprintf(err, "xcopy: %s: filename too long", g_scan.ff_name);
+                (void)err_sz;
+                path_queue_free(&g_entry_queue);
+                path_queue_free(&g_tree_queue);
+                return 0;
+            }
+
+            if (!util_is_dot_entry(g_tree_entry_name) &&
+                (attr & FA_LABEL) == 0u &&
+                !fs_should_skip_attr(ctx, attr)) {
+                if (!path_queue_push_entry(&g_entry_queue, g_tree_entry_name, attr, err, err_sz)) {
+                    path_queue_free(&g_entry_queue);
+                    path_queue_free(&g_tree_queue);
+                    return 0;
+                }
+            }
+
+            if (dss_fnext(&g_scan) != 0) {
+                break;
+            }
+        }
+
+        while (1) {
+            if (!path_queue_pop_entry(&g_entry_queue,
+                                      g_tree_entry_name,
+                                      sizeof(g_tree_entry_name),
+                                      &attr,
+                                      &found,
+                                      err,
+                                      err_sz)) {
+                path_queue_free(&g_entry_queue);
+                path_queue_free(&g_tree_queue);
+                return 0;
+            }
+            if (!found) {
+                break;
+            }
+
             if (!util_join_path(g_tree_child_src, sizeof(g_tree_child_src), g_tree_current_src, g_tree_entry_name) ||
                 !util_join_path(g_tree_child_dst, sizeof(g_tree_child_dst), g_tree_current_dst, g_tree_entry_name)) {
                 sprintf(err, "xcopy: %s\\%s: path too long", g_tree_current_src, g_tree_entry_name);
                 (void)err_sz;
+                path_queue_free(&g_entry_queue);
+                path_queue_free(&g_tree_queue);
                 return 0;
             }
 
-            if (!fs_copy_file_exact(ctx, g_tree_child_src, attr, g_tree_child_dst, err, err_sz)) {
+            if ((attr & FA_DIREC) != 0u) {
+                if (g_tree_current_rel[0] == '\0') {
+                    if (!path_queue_push(&g_tree_queue, g_tree_entry_name, err, err_sz)) {
+                        path_queue_free(&g_entry_queue);
+                        path_queue_free(&g_tree_queue);
+                        return 0;
+                    }
+                } else if (!util_join_path(g_tree_child_rel,
+                                           sizeof(g_tree_child_rel),
+                                           g_tree_current_rel,
+                                           g_tree_entry_name)) {
+                    sprintf(err, "xcopy: %s\\%s: path too long", g_tree_current_rel, g_tree_entry_name);
+                    (void)err_sz;
+                    path_queue_free(&g_entry_queue);
+                    path_queue_free(&g_tree_queue);
+                    return 0;
+                } else if (!path_queue_push(&g_tree_queue, g_tree_child_rel, err, err_sz)) {
+                    path_queue_free(&g_entry_queue);
+                    path_queue_free(&g_tree_queue);
+                    return 0;
+                }
+            } else if (!fs_copy_file_exact(ctx, g_tree_child_src, attr, g_tree_child_dst, err, err_sz)) {
+                path_queue_free(&g_entry_queue);
+                path_queue_free(&g_tree_queue);
                 return 0;
             }
         }
 
-        for (i = 0u; i < entry_count; i++) {
-            u8 attr;
-
-            attr = g_entries[i].attr;
-            if ((attr & FA_DIREC) == 0u || fs_should_skip_attr(ctx, attr)) {
-                continue;
-            }
-
-            if (!util_copy_path(g_tree_entry_name, sizeof(g_tree_entry_name), g_entries[i].name)) {
-                sprintf(err, "xcopy: %s: path too long", g_entries[i].name);
-                (void)err_sz;
-                return 0;
-            }
-            if (!util_join_path(g_tree_child_src, sizeof(g_tree_child_src), g_tree_current_src, g_tree_entry_name) ||
-                !util_join_path(g_tree_child_dst, sizeof(g_tree_child_dst), g_tree_current_dst, g_tree_entry_name)) {
-                sprintf(err, "xcopy: %s\\%s: path too long", g_tree_current_src, g_tree_entry_name);
-                (void)err_sz;
-                return 0;
-            }
-
-            if (pending >= MAX_STACK_DEPTH) {
-                sprintf(err, "xcopy: %s: too many pending directories", g_tree_child_src);
-                (void)err_sz;
-                return 0;
-            }
-            memset(&g_copy_stack[pending], 0, sizeof(copy_frame_t));
-            if (!util_copy_path(g_copy_stack[pending].src, sizeof(g_copy_stack[pending].src), g_tree_child_src) ||
-                !util_copy_path(g_copy_stack[pending].dst, sizeof(g_copy_stack[pending].dst), g_tree_child_dst)) {
-                sprintf(err, "xcopy: %s: path too long", g_tree_child_src);
-                (void)err_sz;
-                return 0;
-            }
-            if (ctx->opts.verbose) {
-                printf("Queue dir %s\r\n", g_tree_child_src);
-            }
-            pending++;
-        }
+        path_queue_free(&g_entry_queue);
     }
 
+    path_queue_free(&g_tree_queue);
     return 1;
 }
 
@@ -735,10 +958,8 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
                                  char *err,
                                  int err_sz) {
     int have_any;
-    u16 entry_count;
-    u16 wildcard_count;
-    int raw_found;
-    u16 i;
+    int found;
+    u8 attr;
 
     if (src_parent[0] == '\0') {
         if (!util_copy_path(g_wild_pattern, sizeof(g_wild_pattern), mask)) {
@@ -753,115 +974,157 @@ static int fs_copy_wildcard_root(xcopy_ctx_t *ctx,
     }
 
     have_any = 0;
-    if (!fs_load_dir_entries(ctx, g_wild_pattern, g_entries, &entry_count, &raw_found, err, err_sz)) {
-        return 0;
-    }
-    if (!raw_found) {
+    if (dss_ffirst(g_wild_pattern, &g_scan, 0x3Fu) != 0) {
         sprintf(err, "xcopy: %s: source not found", g_wild_pattern);
         (void)err_sz;
         return 0;
     }
-    wildcard_count = entry_count;
 
-    for (i = 0u; i < entry_count; i++) {
-        u8 attr;
-
-        if (input_poll_abort()) {
-            ctx->aborted = 1u;
-            util_set_error(err, err_sz, "xcopy: ", "aborted");
-            return 0;
-        }
-
-        attr = g_entries[i].attr;
-        if ((attr & FA_DIREC) != 0u || fs_should_skip_attr(ctx, attr)) {
-            continue;
-        }
-
-        have_any = 1;
-        if (!util_copy_path(g_wild_entry_name, sizeof(g_wild_entry_name), g_entries[i].name)) {
-            sprintf(err, "xcopy: %s: path too long", g_entries[i].name);
-            (void)err_sz;
-            return 0;
-        }
-        if (src_parent[0] == '\0') {
-            if (!util_copy_path(g_wild_child_src, sizeof(g_wild_child_src), g_wild_entry_name)) {
-                sprintf(err, "xcopy: %s: path too long", g_wild_entry_name);
-                (void)err_sz;
-                return 0;
-            }
-        } else if (!util_join_path(g_wild_child_src, sizeof(g_wild_child_src), src_parent, g_wild_entry_name)) {
-            sprintf(err, "xcopy: %s\\%s: path too long", src_parent, g_wild_entry_name);
-            (void)err_sz;
-            return 0;
-        }
-
-        if (!util_join_path(g_wild_child_dst, sizeof(g_wild_child_dst), dst_root, g_wild_entry_name)) {
-            sprintf(err, "xcopy: %s\\%s: destination path too long", dst_root, g_wild_entry_name);
-            (void)err_sz;
-            return 0;
-        }
-
-        if (!fs_copy_file_exact(ctx, g_wild_child_src, attr, g_wild_child_dst, err, err_sz)) {
-            return 0;
-        }
+    if (!path_queue_init(&g_wild_queue, err, err_sz)) {
+        return 0;
+    }
+    if (!path_queue_init(&g_entry_queue, err, err_sz)) {
+        path_queue_free(&g_wild_queue);
+        return 0;
     }
 
-    for (i = 0u; i < wildcard_count; i++) {
-        u8 attr;
-
+    while (1) {
         if (input_poll_abort()) {
             ctx->aborted = 1u;
             util_set_error(err, err_sz, "xcopy: ", "aborted");
+            path_queue_free(&g_entry_queue);
+            path_queue_free(&g_wild_queue);
             return 0;
         }
 
-        if (!fs_load_dir_entries(ctx, g_wild_pattern, g_entries, &entry_count, &raw_found, err, err_sz)) {
-            return 0;
-        }
-        if (i >= entry_count) {
-            break;
-        }
-
-        attr = g_entries[i].attr;
-        if ((attr & FA_DIREC) == 0u || fs_should_skip_attr(ctx, attr)) {
-            continue;
-        }
-
-        have_any = 1;
-        if (!util_copy_path(g_wild_entry_name, sizeof(g_wild_entry_name), g_entries[i].name)) {
-            sprintf(err, "xcopy: %s: path too long", g_entries[i].name);
+        attr = g_scan.attr;
+        if (!util_copy_path(g_wild_entry_name, sizeof(g_wild_entry_name), g_scan.ff_name)) {
+            sprintf(err, "xcopy: %s: filename too long", g_scan.ff_name);
             (void)err_sz;
+            path_queue_free(&g_entry_queue);
+            path_queue_free(&g_wild_queue);
             return 0;
         }
-        if (src_parent[0] == '\0') {
-            if (!util_copy_path(g_wild_child_src, sizeof(g_wild_child_src), g_wild_entry_name)) {
-                sprintf(err, "xcopy: %s: path too long", g_wild_entry_name);
-                (void)err_sz;
+
+        if (!util_is_dot_entry(g_wild_entry_name) &&
+            (attr & FA_LABEL) == 0u &&
+            !fs_should_skip_attr(ctx, attr)) {
+            have_any = 1;
+            if (!path_queue_push_entry(&g_entry_queue, g_wild_entry_name, attr, err, err_sz)) {
+                path_queue_free(&g_entry_queue);
+                path_queue_free(&g_wild_queue);
                 return 0;
             }
-        } else if (!util_join_path(g_wild_child_src, sizeof(g_wild_child_src), src_parent, g_wild_entry_name)) {
-            sprintf(err, "xcopy: %s\\%s: path too long", src_parent, g_wild_entry_name);
-            (void)err_sz;
-            return 0;
         }
 
-        if (!util_join_path(g_wild_child_dst, sizeof(g_wild_child_dst), dst_root, g_wild_entry_name)) {
-            sprintf(err, "xcopy: %s\\%s: destination path too long", dst_root, g_wild_entry_name);
-            (void)err_sz;
-            return 0;
-        }
-
-        if (!fs_copy_directory_tree(ctx, g_wild_child_src, g_wild_child_dst, err, err_sz)) {
-            return 0;
+        if (dss_fnext(&g_scan) != 0) {
+            break;
         }
     }
 
     if (!have_any) {
         sprintf(err, "xcopy: %s: nothing matched after filters", g_wild_pattern);
         (void)err_sz;
+        path_queue_free(&g_entry_queue);
+        path_queue_free(&g_wild_queue);
         return 0;
     }
 
+    while (1) {
+        if (!path_queue_pop_entry(&g_entry_queue,
+                                  g_wild_entry_name,
+                                  sizeof(g_wild_entry_name),
+                                  &attr,
+                                  &found,
+                                  err,
+                                  err_sz)) {
+            path_queue_free(&g_entry_queue);
+            path_queue_free(&g_wild_queue);
+            return 0;
+        }
+        if (!found) {
+            break;
+        }
+
+        if (src_parent[0] == '\0') {
+            if (!util_copy_path(g_wild_child_src, sizeof(g_wild_child_src), g_wild_entry_name)) {
+                sprintf(err, "xcopy: %s: path too long", g_wild_entry_name);
+                (void)err_sz;
+                path_queue_free(&g_entry_queue);
+                path_queue_free(&g_wild_queue);
+                return 0;
+            }
+        } else if (!util_join_path(g_wild_child_src, sizeof(g_wild_child_src), src_parent, g_wild_entry_name)) {
+            sprintf(err, "xcopy: %s\\%s: path too long", src_parent, g_wild_entry_name);
+            (void)err_sz;
+            path_queue_free(&g_entry_queue);
+            path_queue_free(&g_wild_queue);
+            return 0;
+        }
+
+        if (!util_join_path(g_wild_child_dst, sizeof(g_wild_child_dst), dst_root, g_wild_entry_name)) {
+            sprintf(err, "xcopy: %s\\%s: destination path too long", dst_root, g_wild_entry_name);
+            (void)err_sz;
+            path_queue_free(&g_entry_queue);
+            path_queue_free(&g_wild_queue);
+            return 0;
+        }
+
+        if ((attr & FA_DIREC) != 0u) {
+            if (!path_queue_push(&g_wild_queue, g_wild_entry_name, err, err_sz)) {
+                path_queue_free(&g_entry_queue);
+                path_queue_free(&g_wild_queue);
+                return 0;
+            }
+        } else if (!fs_copy_file_exact(ctx, g_wild_child_src, attr, g_wild_child_dst, err, err_sz)) {
+            path_queue_free(&g_entry_queue);
+            path_queue_free(&g_wild_queue);
+            return 0;
+        }
+    }
+
+    path_queue_free(&g_entry_queue);
+
+    while (1) {
+        if (!path_queue_pop(&g_wild_queue,
+                            g_wild_entry_name,
+                            sizeof(g_wild_entry_name),
+                            &found,
+                            err,
+                            err_sz)) {
+            path_queue_free(&g_wild_queue);
+            return 0;
+        }
+        if (!found) {
+            break;
+        }
+
+        if (src_parent[0] == '\0') {
+            if (!util_copy_path(g_wild_child_src, sizeof(g_wild_child_src), g_wild_entry_name)) {
+                sprintf(err, "xcopy: %s: path too long", g_wild_entry_name);
+                (void)err_sz;
+                path_queue_free(&g_wild_queue);
+                return 0;
+            }
+        } else if (!util_join_path(g_wild_child_src, sizeof(g_wild_child_src), src_parent, g_wild_entry_name)) {
+            sprintf(err, "xcopy: %s\\%s: path too long", src_parent, g_wild_entry_name);
+            (void)err_sz;
+            path_queue_free(&g_wild_queue);
+            return 0;
+        }
+        if (!util_join_path(g_wild_child_dst, sizeof(g_wild_child_dst), dst_root, g_wild_entry_name)) {
+            sprintf(err, "xcopy: %s\\%s: destination path too long", dst_root, g_wild_entry_name);
+            (void)err_sz;
+            path_queue_free(&g_wild_queue);
+            return 0;
+        }
+        if (!fs_copy_directory_tree(ctx, g_wild_child_src, g_wild_child_dst, err, err_sz)) {
+            path_queue_free(&g_wild_queue);
+            return 0;
+        }
+    }
+
+    path_queue_free(&g_wild_queue);
     return 1;
 }
 
